@@ -1,50 +1,77 @@
-Vehicle Rental Booking System
+🚗 Vehicle Rental Booking System
 
-Full-stack vehicle rental booking app with step-by-step form interface. Built for the OctaLogic Tech assignment.
+A full-stack web application for renting vehicles (cars and bikes).
+It allows users to make bookings through a step-by-step form with live validation and backend integration.
 
-What it does
 
-- Multi-step booking form (one question per screen with next button) 
-- Choose between 2-wheeler and 4-wheeler vehicles  
-- Dynamic vehicle type selection based on wheels
-- Specific model selection filtered by vehicle type
-- Date range picker for booking dates
-- Responsive design with form validation
-- Professional UI with smooth user experience
+---
 
-Tech Stack
+✨ Features
 
-Frontend:
-- React App
-- Material UI for theming
-- Tailwind CSS for utility classes
+Multi-step booking flow (Name → Wheels → Vehicle Type → Model → Dates → Review → Submit)
 
-Backend:
-- Node.js with Express framework
-- SQL database with proper schema
-- Database migrations and seeding
-- RESTful APIs for frontend integration
+Vehicle types and models fetched dynamically from the database
 
-Project Structure
+Prevents double-booking using date validation
 
-vehicle-rental-booking-system/
-├── frontend/        # React application
-├── backend/         # Node.js Express server
-├── database/        # Migrations and seed scripts
-└── README.md
+TailwindCSS design with progress bar and clean UI
 
-Development Progress
+Backend powered by Sequelize ORM (migrations + seeders)
 
-- [x] GitHub repo setup
-- [ ] Database schema and migrations
-- [ ] Seed data (car types, bike types, vehicles)
-- [ ] Backend APIs for vehicle data and booking
-- [ ] Multi-step React form interface
-- [ ] Form validation and error handling
-- [ ] Deployment and testing
+SQL schema and seeds included
 
-Live Demo
 
-Will be deployed once completed.
 
-OctaLogic Tech Full Stack Assessment 2024
+---
+
+🛠 Tech Stack
+
+Frontend: React + TailwindCSS
+
+Backend: Node.js, Express, Sequelize
+
+Database: SQL (with migrations & seeders)
+
+
+
+---
+
+⚙️ How to Run the Project
+
+1️⃣ Clone the Repository
+
+git clone https://github.com/<your-username>/<your-repo-name>.git
+cd <your-repo-name>
+
+2️⃣ Setup Backend
+
+cd backend
+npm install
+npx sequelize db:migrate
+npx sequelize db:seed:all
+npm start
+
+3️⃣ Setup Frontend
+
+cd frontend
+npm install
+npm start
+
+
+---
+
+📂 Project Structure
+
+backend/   → Node.js backend (server.js, config, migrations, models, seeders)
+frontend/  → React frontend (App.jsx, index.js, Tailwind setup)
+database/  → Schema + seed SQL files
+.gitignore → Ignore node_modules, build outputs, env files
+README.md  → Project documentation
+
+
+---
+
+👨‍💻 Author
+
+Shreyash Pramod Desai
+
