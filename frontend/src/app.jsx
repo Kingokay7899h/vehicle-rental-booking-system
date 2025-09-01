@@ -1,20 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronRight, ChevronLeft, Car, Bike, Calendar, User, Check, MapPin, Loader2 } from 'lucide-react';
-import { format } from 'date-fns';
-import { 
-  TextField, 
-  Button, 
-  RadioGroup, 
-  FormControlLabel, 
-  Radio, 
-  FormControl, 
-  FormLabel,
+import { ChevronRight, ChevronLeft, Car, Bike, Calendar, User, Check, MapPin } from 'lucide-react';
+import {
+  Button,
   Box,
   Typography,
   Paper,
-  Grid,
-  Card,
-  CardContent,
   CircularProgress
 } from '@mui/material';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -22,8 +12,25 @@ import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import dayjs from 'dayjs';
 
+// --- Configuration & API ---
 // NOTE: Replace this with your actual backend URL if it's different.
 const API_BASE_URL = 'http://localhost:5000/api';
+
+// --- Vehicle Image URLs from your second code ---
+const VEHICLE_IMAGES = {
+    'Swift': 'https://i.postimg.cc/wxRHBsQ4/Picsart-25-09-01-10-13-14-464.png',
+    'Alto': 'https://i.postimg.cc/Znj0KcnC/Picsart-25-09-01-14-13-16-323.png',
+    'Tiago': 'https://i.postimg.cc/43TGqc4M/Picsart-25-09-01-14-12-12-034.jpg',
+    'Scorpio': 'https://i.postimg.cc/Dw040tqF/Picsart-25-09-01-14-13-29-281.jpg',
+    'XUV500': 'https://i.postimg.cc/rFKqrcYh/Picsart-25-09-01-14-12-28-028.png',
+    'Creta': 'https://i.postimg.cc/nrwZPwMY/Picsart-25-09-01-14-12-52-696.jpg',
+    'City': 'https://i.postimg.cc/TPczsH4L/Picsart-25-09-01-14-11-50-815.png',
+    'Verna': 'https://i.postimg.cc/HnRfQ30v/Picsart-25-09-01-10-17-09-430.png',
+    'Ciaz': 'https://i.postimg.cc/qR55VfXR/Picsart-25-09-01-14-11-34-415.png',
+    'Royal Enfield Classic 350': 'https://i.postimg.cc/8cczBkvt/Picsart-25-09-01-14-57-17-934.png',
+    'Avenger 220 Cruise': 'https://i.postimg.cc/m28Fbb18/Picsart-25-09-01-14-13-45-020.png',
+    'Jawa Perak': 'https://i.postimg.cc/RVfMgn3J/Picsart-25-09-01-10-09-53-588.png'
+};
 
 const App = () => {
   const [currentStep, setCurrentStep] = useState(0);
@@ -35,7 +42,7 @@ const App = () => {
     specificModel: '',
     startDate: '',
     endDate: '',
-    startDateObj: null, // Dayjs objects for DatePicker
+    startDateObj: null,
     endDateObj: null
   });
   const [errors, setErrors] = useState({});
@@ -45,7 +52,7 @@ const App = () => {
   const [vehicles, setVehicles] = useState([]);
   const [allVehicles, setAllVehicles] = useState([]);
 
-  // Fetch all vehicle types on initial load
+  // --- LOGIC FROM FIRST CODE (UNCHANGED) ---
   useEffect(() => {
     const fetchVehicleTypes = async () => {
       try {
@@ -59,7 +66,6 @@ const App = () => {
     fetchVehicleTypes();
   }, []);
 
-  // Fetch vehicles based on selected type
   useEffect(() => {
     if (formData.vehicleType) {
       const fetchVehicles = async () => {
@@ -68,7 +74,6 @@ const App = () => {
           const response = await fetch(`${API_BASE_URL}/vehicles/${formData.vehicleType}`);
           const data = await response.json();
           setVehicles(data);
-          // To get the vehicle name for the summary, we need all vehicles
           setAllVehicles(prev => {
             const newVehicles = [...prev];
             data.forEach(v => {
@@ -137,7 +142,6 @@ const App = () => {
   };
 
   const handleSubmit = async () => {
-    // Validate the final step before submitting
     if (validateStep(4)) {
       setIsLoading(true);
       try {
@@ -148,24 +152,17 @@ const App = () => {
           startDate: formData.startDate,
           endDate: formData.endDate
         };
-
         const response = await fetch(`${API_BASE_URL}/bookings`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         });
-
         const result = await response.json();
         setIsLoading(false);
-
         if (response.ok) {
-          // It's generally better to use a custom modal than window.alert
           alert('Booking submitted successfully! 🎉');
           console.log('Booking Result:', result);
-          // Optionally, reset form or move to a success step
-          // setCurrentStep(currentStep + 1); 
+          setCurrentStep(currentStep + 1); 
         } else {
           alert(`Booking Failed: ${result.message}`);
           console.error('Booking failed:', result.message);
@@ -183,37 +180,19 @@ const App = () => {
     return vehicle ? vehicle.name : 'Unknown Vehicle';
   };
 
+  // --- UI COMPONENTS (IMPROVED STYLING & IMAGES) ---
   const steps = [
     {
       title: "What's your name?",
       subtitle: "Let's start with the basics",
       icon: <User className="w-8 h-8" />,
       component: () => (
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <TextField
-              label="First Name"
-              variant="outlined"
-              fullWidth
-              value={formData.firstName}
-              onChange={(e) => setFormData({...formData, firstName: e.target.value})}
-              error={!!errors.firstName}
-              helperText={errors.firstName}
-              placeholder="Enter your first name"
-              sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
-            />
-            <TextField
-              label="Last Name"
-              variant="outlined"
-              fullWidth
-              value={formData.lastName}
-              onChange={(e) => setFormData({...formData, lastName: e.target.value})}
-              error={!!errors.lastName}
-              helperText={errors.lastName}
-              placeholder="Enter your last name"
-              sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
-            />
+        <div className="space-y-6 w-full max-w-lg">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+             <input id="firstName" type="text" placeholder="First Name" value={formData.firstName} onChange={e => setFormData({...formData, firstName: e.target.value})} className={`w-full px-4 py-3.5 rounded-xl border-2 bg-gray-50 transition-all duration-300 placeholder:text-gray-500 ${errors.firstName ? 'border-red-500 focus:border-red-500 focus:ring-red-200' : 'border-gray-200 focus:border-indigo-500 focus:ring-indigo-200'} focus:outline-none focus:ring-4`} />
+             <input id="lastName" type="text" placeholder="Last Name" value={formData.lastName} onChange={e => setFormData({...formData, lastName: e.target.value})} className={`w-full px-4 py-3.5 rounded-xl border-2 bg-gray-50 transition-all duration-300 placeholder:text-gray-500 ${errors.lastName ? 'border-red-500 focus:border-red-500 focus:ring-red-200' : 'border-gray-200 focus:border-indigo-500 focus:ring-indigo-200'} focus:outline-none focus:ring-4`} />
           </div>
+           {(errors.firstName || errors.lastName) && <p className="text-red-500 text-sm text-center">⚠️ Please fill out both first and last name.</p>}
         </div>
       )
     },
@@ -222,26 +201,24 @@ const App = () => {
       subtitle: "Choose your ride preference",
       icon: <Car className="w-8 h-8" />,
       component: () => (
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="w-full max-w-lg space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {[
-              { value: '4', label: '4 Wheeler', icon: '🚗', desc: 'Cars & Vehicles' },
+              { value: '4', label: '4 Wheeler', icon: '🚗', desc: 'Cars & SUVs' },
               { value: '2', label: '2 Wheeler', icon: '🏍️', desc: 'Bikes & Motorcycles' }
             ].map((option) => (
               <div
                 key={option.value}
                 onClick={() => setFormData({...formData, wheels: option.value, vehicleType: '', specificModel: ''})}
-                className={`p-6 rounded-2xl border-2 cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-lg ${
+                className={`p-6 rounded-2xl border-2 text-center cursor-pointer transition-all duration-300 transform-gpu group ${
                   formData.wheels === option.value
-                    ? 'border-blue-500 bg-blue-50 shadow-lg'
-                    : 'border-gray-200 hover:border-blue-300'
+                    ? 'border-indigo-500 bg-indigo-50 ring-4 ring-indigo-100'
+                    : 'border-gray-200 bg-white hover:border-indigo-400 hover:-translate-y-1 hover:shadow-xl hover:shadow-indigo-500/10'
                 }`}
               >
-                <div className="text-center space-y-3">
-                  <div className="text-4xl">{option.icon}</div>
-                  <h3 className="font-semibold text-lg">{option.label}</h3>
-                  <p className="text-gray-600 text-sm">{option.desc}</p>
-                </div>
+                <div className="text-5xl mb-3">{option.icon}</div>
+                <h3 className="font-bold text-lg text-gray-800">{option.label}</h3>
+                <p className="text-gray-500 text-sm">{option.desc}</p>
               </div>
             ))}
           </div>
@@ -254,22 +231,19 @@ const App = () => {
       subtitle: "What style fits your journey?",
       icon: formData.wheels === '2' ? <Bike className="w-8 h-8" /> : <Car className="w-8 h-8" />,
       component: () => (
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+         <div className="w-full max-w-2xl space-y-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             {vehicleTypes.filter(type => type.wheels == formData.wheels).map((type) => (
               <div
                 key={type.id}
                 onClick={() => setFormData({...formData, vehicleType: type.id, specificModel: ''})}
-                className={`p-6 rounded-2xl border-2 cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-lg ${
+                className={`p-6 rounded-2xl border-2 text-center cursor-pointer transition-all duration-300 transform-gpu group ${
                   formData.vehicleType === type.id
-                    ? 'border-blue-500 bg-blue-50 shadow-lg'
-                    : 'border-gray-200 hover:border-blue-300'
+                    ? 'border-indigo-500 bg-indigo-50 ring-4 ring-indigo-100'
+                    : 'border-gray-200 bg-white hover:border-indigo-400 hover:-translate-y-1 hover:shadow-lg'
                 }`}
               >
-                <div className="text-center space-y-3">
-                  <div className="text-4xl">{type.name === 'Hatchback' ? '🚗' : type.name === 'SUV' ? '🚐' : type.name === 'Sedan' ? '🚙' : type.name === 'Cruiser' ? '🏍️' : '💎'}</div>
-                  <h3 className="font-semibold text-lg">{type.name}</h3>
-                </div>
+                <h3 className="font-bold text-lg text-gray-800">{type.name}</h3>
               </div>
             ))}
           </div>
@@ -279,33 +253,35 @@ const App = () => {
     },
     {
       title: "Choose your ride",
-      subtitle: "Pick the perfect vehicle",
+      subtitle: "Pick the perfect vehicle for your trip",
       icon: <MapPin className="w-8 h-8" />,
       component: () => (
-        <div className="space-y-6">
+        <div className="space-y-6 w-full max-w-4xl">
           {isLoading ? (
-            <div className="flex justify-center items-center h-48">
-              <CircularProgress size={40} />
-            </div>
+            <div className="flex justify-center items-center h-48"><CircularProgress size={40} sx={{ color: '#4f46e5' }} /></div>
           ) : (
-            <div className="grid grid-cols-1 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-h-[450px] overflow-y-auto p-2">
               {vehicles.map((model) => (
                 <div
                   key={model.id}
                   onClick={() => setFormData({...formData, specificModel: model.id})}
-                  className={`p-6 rounded-2xl border-2 cursor-pointer transition-all duration-300 hover:scale-102 hover:shadow-lg ${
+                  className={`rounded-2xl border-2 cursor-pointer transition-all duration-300 group overflow-hidden ${
                     formData.specificModel === model.id
-                      ? 'border-blue-500 bg-blue-50 shadow-lg'
-                      : 'border-gray-200 hover:border-blue-300'
+                      ? 'border-indigo-500 bg-indigo-50 ring-4 ring-indigo-100'
+                      : 'border-gray-200 bg-white hover:border-indigo-400 hover:shadow-xl hover:shadow-indigo-500/10 hover:-translate-y-1'
                   }`}
                 >
-                  <div className="flex items-center justify-between">
+                  <div className="bg-gray-100 overflow-hidden">
+                    
+                    <img src={VEHICLE_IMAGES[model.name]} alt={model.name} className="w-full h-40 object-contain group-hover:scale-105 transition-transform duration-500 ease-in-out"/>
+                  </div>
+                  <div className="p-4 flex justify-between items-center">
                     <div>
-                      <h3 className="font-semibold text-lg">{model.name}</h3>
-                      <p className="text-blue-600 font-medium">₹{model.price_per_day}/day</p>
+                      <h3 className="font-bold text-lg text-gray-800">{model.name}</h3>
+                      <p className="text-indigo-600 font-medium">₹{model.price_per_day}/day</p>
                     </div>
-                    <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
-                      formData.specificModel === model.id ? 'border-blue-500 bg-blue-500' : 'border-gray-300'
+                    <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all duration-300 ${
+                      formData.specificModel === model.id ? 'border-indigo-500 bg-indigo-500' : 'border-gray-300 bg-white'
                     }`}>
                       {formData.specificModel === model.id && <Check className="w-4 h-4 text-white" />}
                     </div>
@@ -324,8 +300,8 @@ const App = () => {
       icon: <Calendar className="w-8 h-8" />,
       component: () => (
         <LocalizationProvider dateAdapter={AdapterDayjs}>
-          <div className="space-y-6">
-            <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 3, alignItems: 'center', justifyContent: 'center' }}>
+          <div className="space-y-6 w-full max-w-xl">
+            <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 2, alignItems: 'center', justifyContent: 'center' }}>
               <DatePicker
                 label="Start Date"
                 value={formData.startDateObj}
@@ -341,7 +317,7 @@ const App = () => {
                 minDate={dayjs()}
                 slotProps={{ textField: { error: !!errors.startDate, helperText: errors.startDate, fullWidth: true, sx: { '& .MuiOutlinedInput-root': { borderRadius: '12px' } } } }}
               />
-              <Typography variant="body2" color="text.secondary" sx={{ mx: 1 }}> to </Typography>
+               <Typography variant="body2" color="text.secondary" sx={{ display: { xs: 'none', md: 'block' } }}> to </Typography>
               <DatePicker
                 label="End Date"
                 value={formData.endDateObj}
@@ -359,12 +335,9 @@ const App = () => {
             </Box>
             {(formData.startDateObj && formData.endDateObj && formData.endDateObj.isAfter(formData.startDateObj)) && (
               <Box sx={{ textAlign: 'center', mt: 2 }}>
-                <Paper elevation={1} sx={{ p: 2, borderRadius: '12px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0' }}>
-                  <Typography variant="body2" color="text.secondary">
-                    Duration: {formData.endDateObj.diff(formData.startDateObj, 'day')} day(s)
-                  </Typography>
-                  <Typography variant="body2" color="primary" sx={{ mt: 0.5 }}>
-                    {formData.startDateObj.format('MMM DD, YYYY')} → {formData.endDateObj.format('MMM DD, YYYY')}
+                <Paper elevation={0} sx={{ p: 2, borderRadius: '12px', backgroundColor: '#f9fafb', border: '1px solid #f3f4f6' }}>
+                  <Typography variant="body1" color="text.secondary">
+                    Total Duration: <span className="font-bold text-gray-800">{formData.endDateObj.diff(formData.startDateObj, 'day')} day(s)</span>
                   </Typography>
                 </Paper>
               </Box>
@@ -376,121 +349,134 @@ const App = () => {
     }
   ];
 
-  const CurrentStepComponent = steps[currentStep]?.component;
-  const currentStepInfo = steps[currentStep];
-
-  // A final summary/confirmation step
   const ConfirmationStep = () => (
-    <div className="text-center space-y-4">
+    <div className="text-center space-y-4 w-full max-w-2xl">
         <h2 className="text-3xl font-bold text-gray-800 mb-2">Review Your Booking</h2>
-        <p className="text-gray-600 text-lg">Please confirm the details below before booking.</p>
+        <p className="text-gray-500 text-lg">Please confirm the details below before booking.</p>
         <Paper 
-            elevation={1} 
-            sx={{ 
-                p: 3, 
-                borderRadius: '16px', 
-                backgroundColor: '#f8fafc',
-                border: '1px solid #e2e8f0',
-                textAlign: 'left'
-            }}
+            elevation={0} 
+            sx={{ p: { xs: 2, sm: 4 }, borderRadius: '16px', backgroundColor: '#f9fafb', border: '1px solid #f3f4f6', textAlign: 'left' }}
         >
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-gray-700">
-                <div className="flex flex-col"><span className="text-sm font-semibold text-gray-500">Full Name</span> {formData.firstName} {formData.lastName}</div>
-                <div className="flex flex-col"><span className="text-sm font-semibold text-gray-500">Vehicle</span> {getVehicleName(formData.specificModel)}</div>
-                <div className="flex flex-col"><span className="text-sm font-semibold text-gray-500">Start Date</span> {dayjs(formData.startDate).format('MMM DD, YYYY')}</div>
-                <div className="flex flex-col"><span className="text-sm font-semibold text-gray-500">End Date</span> {dayjs(formData.endDate).format('MMM DD, YYYY')}</div>
-                <div className="flex flex-col md:col-span-2"><span className="text-sm font-semibold text-gray-500">Total Duration</span> {dayjs(formData.endDate).diff(dayjs(formData.startDate), 'day')} days</div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 text-gray-700">
+                <div><p className="text-xs uppercase tracking-wider font-medium text-gray-500">Full Name</p><p className="font-semibold text-gray-900">{formData.firstName} {formData.lastName}</p></div>
+                <div><p className="text-xs uppercase tracking-wider font-medium text-gray-500">Vehicle</p><p className="font-semibold text-gray-900">{getVehicleName(formData.specificModel)}</p></div>
+                <div><p className="text-xs uppercase tracking-wider font-medium text-gray-500">Start Date</p><p className="font-semibold text-gray-900">{dayjs(formData.startDate).format('MMM DD, YYYY')}</p></div>
+                <div><p className="text-xs uppercase tracking-wider font-medium text-gray-500">End Date</p><p className="font-semibold text-gray-900">{dayjs(formData.endDate).format('MMM DD, YYYY')}</p></div>
+                <div className="md:col-span-2 mt-2 pt-3 border-t"><p className="text-center text-lg">Total Duration: <span className="font-bold text-indigo-600">{dayjs(formData.endDate).diff(dayjs(formData.startDate), 'day')} days</span></p></div>
             </div>
         </Paper>
     </div>
   );
+
+  const SuccessStep = () => (
+    <div className="text-center space-y-4 py-8">
+        <div className="w-24 h-24 mx-auto bg-green-100 rounded-full flex items-center justify-center">
+            <Check className="w-12 h-12 text-green-600" />
+        </div>
+        <h2 className="text-3xl font-bold text-gray-800">Booking Confirmed!</h2>
+        <p className="text-gray-500 text-lg max-w-md mx-auto">Thank you, {formData.firstName}! Your booking for the {getVehicleName(formData.specificModel)} is complete. We've sent a confirmation to your email.</p>
+    </div>
+  );
   
-  const allSteps = [...steps, {
-    title: "Confirm Booking",
-    subtitle: "Almost there!",
-    icon: <Check className="w-8 h-8" />,
-    component: ConfirmationStep
-  }];
+  const allSteps = [...steps, 
+    { title: "Confirm", subtitle: "Almost there!", icon: <Check className="w-8 h-8" />, component: ConfirmationStep },
+    { title: "Done!", subtitle: "Enjoy your ride!", icon: <Check className="w-8 h-8" />, component: SuccessStep }
+  ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 py-8 px-4 font-sans">
-      <div className="max-w-4xl mx-auto">
+    <div className="min-h-screen bg-gray-50 py-10 px-4 font-sans antialiased">
+      <div className="max-w-5xl mx-auto">
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-4">
+          <h1 className="text-4xl md:text-5xl font-bold text-gray-800 mb-3">
             Vehicle Rental Booking
           </h1>
-          <p className="text-gray-600 text-lg">Find your perfect ride in just a few steps</p>
+          <p className="text-gray-500 text-lg">Find your perfect ride in just a few steps</p>
         </div>
         
-        <div className="mb-8 px-4">
+        <div className="mb-10 px-4 hidden sm:block">
             <div className="flex items-center">
-                {allSteps.map((step, index) => (
+                {allSteps.slice(0, 6).map((step, index) => (
                     <React.Fragment key={index}>
                         <div className="flex flex-col items-center">
                             <div
                                 className={`flex items-center justify-center w-12 h-12 rounded-full transition-all duration-500 z-10 ${
-                                index <= currentStep ? 'bg-blue-500 text-white shadow-lg' : 'bg-gray-200 text-gray-400'
+                                index < currentStep ? 'bg-green-500 text-white' : index === currentStep ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/50' : 'bg-gray-200 text-gray-400'
                                 }`}
                             >
-                                {index < currentStep ? <Check className="w-6 h-6" /> : <span className="font-semibold">{index + 1}</span>}
+                                {index < currentStep ? <Check className="w-6 h-6" /> : <span className="font-semibold text-lg">{index + 1}</span>}
                             </div>
-                            <p className={`mt-2 text-xs text-center ${index <= currentStep ? 'text-blue-600 font-semibold' : 'text-gray-500'}`}>{step.title}</p>
+                            <p className={`mt-2 text-sm text-center font-semibold ${index <= currentStep ? 'text-indigo-600' : 'text-gray-500'}`}>{step.title}</p>
                         </div>
-                        {index < allSteps.length - 1 && (
-                            <div className={`flex-auto border-t-2 transition-all duration-500 ${index < currentStep ? 'border-blue-500' : 'border-gray-200'}`}></div>
+                        {index < 5 && (
+                            <div className={`flex-auto border-t-2 transition-all duration-500 ${index < currentStep ? 'border-indigo-600' : 'border-gray-200'}`}></div>
                         )}
                     </React.Fragment>
                 ))}
             </div>
         </div>
 
-        <div className="bg-white rounded-3xl shadow-2xl p-8 mb-8">
+        <div className="bg-white rounded-3xl shadow-2xl shadow-gray-900/10 p-6 sm:p-10">
           <div className={`transition-all duration-300 ${isAnimating ? 'opacity-0 transform translate-x-4' : 'opacity-100 transform translate-x-0'}`}>
             <div className="text-center mb-8">
               <div className="flex justify-center mb-4">
-                <div className="p-4 bg-blue-100 rounded-2xl text-blue-600">
+                <div className="p-4 bg-indigo-100 rounded-2xl text-indigo-600">
                   {allSteps[currentStep]?.icon}
                 </div>
               </div>
-              <h2 className="text-3xl font-bold text-gray-800 mb-2">
+              <h2 className="text-3xl font-bold text-gray-800 mb-1">
                 {allSteps[currentStep]?.title}
               </h2>
-              <p className="text-gray-600 text-lg">{allSteps[currentStep]?.subtitle}</p>
+              <p className="text-gray-500 text-lg">{allSteps[currentStep]?.subtitle}</p>
             </div>
-            <div className="mb-8 min-h-[200px] flex items-center justify-center">
+            <div className="mb-8 min-h-[300px] flex items-center justify-center">
               {allSteps[currentStep]?.component()}
             </div>
-            <div className="flex justify-between items-center mt-8">
-              <Button
-                onClick={handlePrev}
-                disabled={currentStep === 0}
-                startIcon={<ChevronLeft className="w-5 h-5" />}
-                variant="text"
-                sx={{ borderRadius: '12px', textTransform: 'none', fontSize: '16px', fontWeight: 600, color: currentStep === 0 ? 'gray' : '#6B7280', '&:hover': { backgroundColor: currentStep === 0 ? 'transparent' : '#EFF6FF', color: currentStep === 0 ? 'gray' : '#2563EB' } }}
-              >
-                Previous
-              </Button>
-              {currentStep < allSteps.length - 1 ? (
-                <Button
-                  onClick={handleNext}
-                  endIcon={<ChevronRight className="w-5 h-5" />}
-                  variant="contained"
-                  sx={{ borderRadius: '12px', textTransform: 'none', fontSize: '16px', fontWeight: 600, background: 'linear-gradient(to right, #3B82F6, #8B5CF6)', padding: '12px 32px', '&:hover': { background: 'linear-gradient(to right, #2563EB, #7C3AED)', transform: 'scale(1.05)' } }}
-                >
-                  Next
-                </Button>
-              ) : (
-                <Button
-                  onClick={handleSubmit}
-                  disabled={isLoading}
-                  endIcon={isLoading ? <CircularProgress size={20} color="inherit" /> : <Check className="w-5 h-5" />}
-                  variant="contained"
-                  sx={{ borderRadius: '12px', textTransform: 'none', fontSize: '16px', fontWeight: 600, background: 'linear-gradient(to right, #10B981, #3B82F6)', padding: '12px 32px', '&:hover': { background: 'linear-gradient(to right, #059669, #2563EB)', transform: 'scale(1.05)' }, '&:disabled': { opacity: 0.5 } }}
-                >
-                  {isLoading ? 'Booking...' : 'Book Now'}
-                </Button>
-              )}
-            </div>
+            
+            {/* --- NAVIGATION BUTTONS --- */}
+            {currentStep < allSteps.length - 1 && (
+                 <div className="flex flex-col-reverse sm:flex-row justify-between items-center mt-8 pt-6 border-t border-gray-200">
+                 <Button
+                   onClick={handlePrev}
+                   disabled={currentStep === 0}
+                   startIcon={<ChevronLeft className="w-5 h-5" />}
+                   variant="text"
+                   sx={{ textTransform: 'none', fontSize: '16px', fontWeight: 600, color: '#4b5563', borderRadius: '12px', padding: '10px 20px', '&:hover': { backgroundColor: '#f3f4f6' }, '&:disabled': { color: '#d1d5db' } }}
+                 >
+                   Back
+                 </Button>
+                 {currentStep < allSteps.length - 2 ? (
+                   <Button
+                     onClick={handleNext}
+                     endIcon={<ChevronRight className="w-5 h-5" />}
+                     variant="contained"
+                     sx={{ 
+                         textTransform: 'none', fontSize: '16px', fontWeight: 600, 
+                         backgroundColor: '#4f46e5', borderRadius: '12px', 
+                         padding: '12px 32px', boxShadow: '0 4px 14px 0 rgb(79 70 229 / 39%)',
+                         '&:hover': { backgroundColor: '#4338ca', transform: 'translateY(-2px)', boxShadow: '0 6px 20px 0 rgb(79 70 229 / 39%)' } 
+                     }}
+                   >
+                     Next Step
+                   </Button>
+                 ) : (
+                   <Button
+                     onClick={handleSubmit}
+                     disabled={isLoading}
+                     endIcon={isLoading ? <CircularProgress size={20} color="inherit" /> : <Check className="w-5 h-5" />}
+                     variant="contained"
+                     sx={{ 
+                         textTransform: 'none', fontSize: '16px', fontWeight: 600, 
+                         backgroundColor: '#10b981', borderRadius: '12px',
+                         padding: '12px 32px', boxShadow: '0 4px 14px 0 rgb(16 185 129 / 39%)',
+                         '&:hover': { backgroundColor: '#059669', transform: 'translateY(-2px)', boxShadow: '0 6px 20px 0 rgb(16 185 129 / 39%)' }, 
+                         '&:disabled': { backgroundColor: '#a7f3d0' } 
+                     }}
+                   >
+                     {isLoading ? 'Booking...' : 'Confirm & Book'}
+                   </Button>
+                 )}
+               </div>
+            )}
           </div>
         </div>
       </div>
