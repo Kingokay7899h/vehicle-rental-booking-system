@@ -7,7 +7,6 @@ import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import dayjs from 'dayjs';
 
 // --- Configuration & API ---
-// NOTE: Replace this with your actual backend URL if it's different.
 const API_BASE_URL = 'http://localhost:5000/api';
 
 // --- Vehicle Image URLs ---
@@ -36,7 +35,7 @@ const FormInput = ({ id, placeholder, value, onChange, error }) => (
             placeholder={placeholder} 
             value={value} 
             onChange={onChange}
-            className={`w-full px-4 py-3.5 rounded-lg bg-gray-800/50 border-2 text-white placeholder-gray-500 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 ${error ? 'border-red-500/50 focus:border-red-500 focus:ring-red-500' : 'border-gray-700 focus:border-cyan-400 focus:ring-cyan-400'}`} 
+            className={`w-full px-4 py-3.5 rounded-lg border-2 bg-gray-50 transition-all duration-300 placeholder:text-gray-500 ${error ? 'border-red-500 focus:border-red-500 ring-red-200' : 'border-gray-200 focus:border-black ring-gray-200'} focus:outline-none focus:ring-2`} 
         />
     </div>
 );
@@ -46,14 +45,14 @@ const SelectionCard = ({ isSelected, onClick, children }) => (
         onClick={onClick} 
         className={`relative p-6 rounded-xl border-2 text-center cursor-pointer transition-all duration-300 transform-gpu group ${ 
             isSelected 
-            ? 'border-cyan-400 bg-gray-800/60 ring-2 ring-cyan-400/50 ring-offset-2 ring-offset-gray-900' 
-            : 'border-gray-700 bg-gray-800/40 hover:border-gray-500 hover:-translate-y-1 hover:bg-gray-800/80' 
+            ? 'border-black bg-gray-100 ring-2 ring-gray-900/10 ring-offset-2' 
+            : 'border-gray-200 bg-white hover:border-gray-400 hover:-translate-y-1 hover:shadow-lg' 
         }`}
     >
         {children}
         {isSelected && (
-            <div className="absolute -top-3 -right-3 w-6 h-6 bg-cyan-400 rounded-full flex items-center justify-center border-2 border-gray-900">
-                <Check className="w-4 h-4 text-black" />
+            <div className="absolute -top-3 -right-3 w-6 h-6 bg-black rounded-full flex items-center justify-center border-2 border-white">
+                <Check className="w-4 h-4 text-white" />
             </div>
         )}
     </div>
@@ -64,29 +63,30 @@ const VehicleCard = ({ model, isSelected, onClick }) => (
         onClick={onClick}
         className={`relative rounded-xl border-2 cursor-pointer transition-all duration-300 group overflow-hidden ${
             isSelected 
-            ? 'border-cyan-400 bg-gray-800/60 ring-2 ring-cyan-400/50 ring-offset-2 ring-offset-gray-900' 
-            : 'border-gray-700 bg-gray-800/40 hover:border-gray-500 hover:-translate-y-1'
+            ? 'border-black bg-gray-100 ring-2 ring-gray-900/10 ring-offset-2' 
+            : 'border-gray-200 bg-white hover:border-gray-400 hover:shadow-lg hover:-translate-y-1'
         }`}
     >
-        <div className="bg-gray-900/50 overflow-hidden aspect-video">
+        <div className="bg-gray-100 overflow-hidden aspect-video">
             <img 
-                src={VEHICLE_IMAGES[model.name] || 'https://placehold.co/400x225/111827/FFF?text=Image'} 
+                src={VEHICLE_IMAGES[model.name] || 'https://placehold.co/400x225/e5e7eb/374151?text=Image'} 
                 alt={model.name} 
                 className="w-full h-full object-contain p-2 group-hover:scale-105 transition-transform duration-500 ease-in-out"
-                onError={(e) => { e.target.onerror = null; e.target.src='https://placehold.co/400x225/111827/FFF?text=Image+Not+Found'; }}
+                onError={(e) => { e.target.onerror = null; e.target.src='https://placehold.co/400x225/e5e7eb/374151?text=Image+Not+Found'; }}
             />
         </div>
-        <div className="p-4 bg-gray-800/40">
-            <h3 className="font-bold text-lg text-white">{model.name}</h3>
-            <p className="text-cyan-300 font-semibold text-base">₹{model.price_per_day.toLocaleString()}/day</p>
+        <div className="p-4">
+            <h3 className="font-bold text-lg text-black">{model.name}</h3>
+            <p className="text-gray-800 font-semibold text-base">₹{model.price_per_day.toLocaleString()}/day</p>
         </div>
-        {isSelected && (
-            <div className="absolute -top-3 -right-3 w-6 h-6 bg-cyan-400 rounded-full flex items-center justify-center border-2 border-gray-900">
-                <Check className="w-4 h-4 text-black" />
+         {isSelected && (
+            <div className="absolute -top-3 -right-3 w-6 h-6 bg-black rounded-full flex items-center justify-center border-2 border-white">
+                <Check className="w-4 h-4 text-white" />
             </div>
         )}
     </div>
 );
+
 
 const App = () => {
   const [currentStep, setCurrentStep] = useState(0);
@@ -108,13 +108,20 @@ const App = () => {
   const [vehicles, setVehicles] = useState([]);
   const [allVehicles, setAllVehicles] = useState([]);
 
-  // --- LOGIC FROM ORIGINAL CODE (UNCHANGED) ---
+  // --- DATA FETCHING & CLEANING LOGIC ---
   useEffect(() => {
     const fetchVehicleTypes = async () => {
       try {
         const response = await fetch(`${API_BASE_URL}/vehicle-types`);
-        const data = await response.json();
-        setVehicleTypes(data);
+        let data = await response.json();
+        
+        // 1. Filter out the "Sports" category
+        const filteredData = data.filter(type => type.name.toLowerCase() !== 'sports');
+
+        // 2. De-duplicate the types to ensure each appears only once
+        const uniqueTypes = Array.from(new Map(filteredData.map(item => [item.id, item])).values());
+        
+        setVehicleTypes(uniqueTypes);
       } catch (error) {
         console.error('Error fetching vehicle types:', error);
       }
@@ -128,17 +135,25 @@ const App = () => {
         setIsLoading(true);
         try {
           const response = await fetch(`${API_BASE_URL}/vehicles/${formData.vehicleType}`);
-          const data = await response.json();
-          setVehicles(data);
+          let data = await response.json();
+
+          // 1. Define duplicate names to remove
+          const duplicatesToRemove = ['Maruti Swift', 'Mahindra Scorpio', 'Honda City'];
+          let cleanedData = data.filter(vehicle => !duplicatesToRemove.includes(vehicle.name));
+
+          // 2. De-duplicate any remaining items by name (handles Royal Enfield)
+          const uniqueVehicles = Array.from(new Map(cleanedData.map(item => [item.name, item])).values());
+
+          setVehicles(uniqueVehicles);
           setAllVehicles(prev => {
-            const newVehicles = [...prev];
-            data.forEach(v => {
-              if (!newVehicles.find(nv => nv.id === v.id)) {
-                newVehicles.push(v);
-              }
-            });
-            return newVehicles;
-          });
+             const newVehicles = [...prev];
+             uniqueVehicles.forEach(v => {
+               if (!newVehicles.find(nv => nv.id === v.id)) {
+                 newVehicles.push(v);
+               }
+             });
+             return newVehicles;
+           });
           setIsLoading(false);
         } catch (error) {
           console.error('Error fetching vehicles:', error);
@@ -231,10 +246,10 @@ const App = () => {
 
   const getVehicleInfo = (id) => allVehicles.find(v => v.id === id);
 
-  // --- DYNAMIC STEP CONFIGURATION FOR NEW UI ---
+  // --- DYNAMIC STEP CONFIGURATION FOR UI ---
   const allSteps = useMemo(() => {
     const selectedVehicle = getVehicleInfo(formData.specificModel);
-    const rentalDays = (formData.startDateObj && formData.endDateObj && formData.endDateObj.isAfter(formData.startDateObj)) 
+    const rentalDays = (formData.startDateObj && formData.endDateObj && formData.endDateObj.isAfter(formData.startDateObj, 'day')) 
       ? formData.endDateObj.diff(formData.startDateObj, 'day') + 1
       : 0;
     const totalPrice = selectedVehicle && rentalDays > 0 ? selectedVehicle.price_per_day * rentalDays : 0;
@@ -251,7 +266,7 @@ const App = () => {
               <FormInput id="firstName" placeholder="First Name" value={formData.firstName} onChange={e => setFormData({...formData, firstName: e.target.value})} error={errors.firstName} />
               <FormInput id="lastName" placeholder="Last Name" value={formData.lastName} onChange={e => setFormData({...formData, lastName: e.target.value})} error={errors.lastName} />
             </div>
-            {(errors.firstName || errors.lastName) && <p className="text-red-400 text-sm text-center pt-2">Please fill out both first and last name.</p>}
+            {(errors.firstName || errors.lastName) && <p className="text-red-500 text-sm text-center pt-2">Please fill out both first and last name.</p>}
           </div>
         )
       },
@@ -264,17 +279,17 @@ const App = () => {
           <div className="w-full max-w-lg space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <SelectionCard isSelected={formData.wheels === '4'} onClick={() => setFormData({...formData, wheels: '4', vehicleType: '', specificModel: ''})}>
-                    <Car className="w-12 h-12 mx-auto mb-3 text-cyan-300"/>
-                    <h3 className="font-bold text-lg text-white">4 Wheels</h3>
-                    <p className="text-gray-400 text-sm">Cars & SUVs</p>
+                    <Car className="w-12 h-12 mx-auto mb-3 text-gray-800"/>
+                    <h3 className="font-bold text-lg text-black">4 Wheels</h3>
+                    <p className="text-gray-500 text-sm">Cars & SUVs</p>
                 </SelectionCard>
                 <SelectionCard isSelected={formData.wheels === '2'} onClick={() => setFormData({...formData, wheels: '2', vehicleType: '', specificModel: ''})}>
-                    <Bike className="w-12 h-12 mx-auto mb-3 text-cyan-300"/>
-                    <h3 className="font-bold text-lg text-white">2 Wheels</h3>
-                    <p className="text-gray-400 text-sm">Motorcycles</p>
+                    <Bike className="w-12 h-12 mx-auto mb-3 text-gray-800"/>
+                    <h3 className="font-bold text-lg text-black">2 Wheels</h3>
+                    <p className="text-gray-500 text-sm">Motorcycles</p>
                 </SelectionCard>
             </div>
-            {errors.wheels && <p className="text-red-400 text-sm text-center pt-2">{errors.wheels}</p>}
+            {errors.wheels && <p className="text-red-500 text-sm text-center pt-2">{errors.wheels}</p>}
           </div>
         )
       },
@@ -288,11 +303,11 @@ const App = () => {
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               {vehicleTypes.filter(type => type.wheels == formData.wheels).map((type) => (
                 <SelectionCard key={type.id} isSelected={formData.vehicleType === type.id} onClick={() => setFormData({...formData, vehicleType: type.id, specificModel: ''})}>
-                  <h3 className="font-bold text-lg text-white py-4">{type.name}</h3>
+                  <h3 className="font-bold text-lg text-black py-4">{type.name}</h3>
                 </SelectionCard>
               ))}
             </div>
-            {errors.vehicleType && <p className="text-red-400 text-sm text-center pt-2">{errors.vehicleType}</p>}
+            {errors.vehicleType && <p className="text-red-500 text-sm text-center pt-2">{errors.vehicleType}</p>}
           </div>
         )
       },
@@ -303,14 +318,14 @@ const App = () => {
         subtitle: "Here are the available models in this category.",
         component: () => (
           <div className="space-y-6 w-full max-w-4xl">
-            {isLoading ? <div className="flex justify-center items-center h-48"><CircularProgress sx={{ color: '#67e8f9' }} /></div> : (
+            {isLoading ? <div className="flex justify-center items-center h-48"><CircularProgress sx={{ color: '#000000' }} /></div> : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 max-h-[450px] overflow-y-auto p-2 -mr-2 pr-4">
                 {vehicles.map((model) => (
                   <VehicleCard key={model.id} model={model} isSelected={formData.specificModel === model.id} onClick={() => setFormData({...formData, specificModel: model.id})} />
                 ))}
               </div>
             )}
-            {errors.specificModel && <p className="text-red-400 text-sm text-center pt-2">{errors.specificModel}</p>}
+            {errors.specificModel && <p className="text-red-500 text-sm text-center pt-2">{errors.specificModel}</p>}
           </div>
         )
       },
@@ -327,41 +342,41 @@ const App = () => {
                 <DatePicker label="End Date" value={formData.endDateObj} onChange={(newValue) => setFormData({ ...formData, endDateObj: newValue, endDate: newValue ? newValue.format('YYYY-MM-DD') : '' })} minDate={formData.startDateObj ? formData.startDateObj.add(1, 'day') : dayjs().add(1, 'day')} disabled={!formData.startDateObj} slotProps={{ textField: { fullWidth: true } }}/>
               </div>
               {rentalDays > 0 && (
-                <div className="text-center mt-2">
-                  <div className="p-4 rounded-lg bg-gray-800/50 border border-gray-700 inline-block">
-                    <p className="text-gray-300">
-                      Total Duration: <span className="font-bold text-white">{rentalDays} day(s)</span>
+                <div className="text-center mt-4">
+                  <div className="p-4 rounded-lg bg-gray-100 border border-gray-200 inline-block">
+                    <p className="text-gray-600">
+                      Total Duration: <span className="font-bold text-black">{rentalDays} day(s)</span>
                     </p>
                     {totalPrice > 0 && (
-                      <p className="text-xl mt-1 font-bold text-cyan-300">
+                      <p className="text-xl mt-1 font-bold text-black">
                         Estimated Price: ₹{totalPrice.toLocaleString()}
                       </p>
                     )}
                   </div>
                 </div>
               )}
-              {errors.dateRange && <p className="text-red-400 text-sm text-center pt-2">{errors.dateRange}</p>}
+              {errors.dateRange && <p className="text-red-500 text-sm text-center pt-2">{errors.dateRange}</p>}
             </div>
           </LocalizationProvider>
         )
       },
       {
-        icon: ClipboardCheck, // <-- THE FIX IS HERE
+        icon: ClipboardCheck,
         label: "Confirm",
         title: "Confirm Your Booking",
         subtitle: "One final check before we finalize your ride.",
         component: () => (
           <div className="w-full max-w-2xl">
-              <div className="p-6 sm:p-8 rounded-xl bg-gray-800/50 border border-gray-700 text-left">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-6 text-gray-300">
-                      <div><p className="text-xs uppercase tracking-wider font-medium text-gray-500">Full Name</p><p className="font-semibold text-white text-lg">{formData.firstName} {formData.lastName}</p></div>
-                      <div><p className="text-xs uppercase tracking-wider font-medium text-gray-500">Vehicle</p><p className="font-semibold text-white text-lg">{selectedVehicle?.name || 'N/A'}</p></div>
-                      <div><p className="text-xs uppercase tracking-wider font-medium text-gray-500">Start Date</p><p className="font-semibold text-white text-lg">{dayjs(formData.startDate).format('MMM DD, YYYY')}</p></div>
-                      <div><p className="text-xs uppercase tracking-wider font-medium text-gray-500">End Date</p><p className="font-semibold text-white text-lg">{dayjs(formData.endDate).format('MMM DD, YYYY')}</p></div>
+              <div className="p-6 sm:p-8 rounded-xl bg-white border border-gray-200 text-left">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-6 text-gray-700">
+                      <div><p className="text-xs uppercase tracking-wider font-medium text-gray-500">Full Name</p><p className="font-semibold text-black text-lg">{formData.firstName} {formData.lastName}</p></div>
+                      <div><p className="text-xs uppercase tracking-wider font-medium text-gray-500">Vehicle</p><p className="font-semibold text-black text-lg">{selectedVehicle?.name || 'N/A'}</p></div>
+                      <div><p className="text-xs uppercase tracking-wider font-medium text-gray-500">Start Date</p><p className="font-semibold text-black text-lg">{dayjs(formData.startDate).format('MMM DD, YYYY')}</p></div>
+                      <div><p className="text-xs uppercase tracking-wider font-medium text-gray-500">End Date</p><p className="font-semibold text-black text-lg">{dayjs(formData.endDate).format('MMM DD, YYYY')}</p></div>
                   </div>
-                  <div className="mt-6 pt-6 border-t border-gray-700 text-center">
-                    <p className="text-gray-400">Total Duration: <span className="font-bold text-white">{rentalDays} days</span></p>
-                    <p className="text-2xl font-bold text-cyan-300 mt-1">Total Price: ₹{totalPrice.toLocaleString()}</p>
+                  <div className="mt-6 pt-6 border-t border-gray-200 text-center">
+                    <p className="text-gray-500">Total Duration: <span className="font-bold text-black">{rentalDays} days</span></p>
+                    <p className="text-2xl font-bold text-black mt-1">Total Price: ₹{totalPrice.toLocaleString()}</p>
                   </div>
               </div>
           </div>
@@ -374,10 +389,10 @@ const App = () => {
         subtitle: `Get ready for your adventure, ${formData.firstName}.`,
         component: () => (
           <div className="text-center space-y-4 py-8">
-              <div className="w-24 h-24 mx-auto bg-green-500/10 rounded-full flex items-center justify-center ring-4 ring-green-500/20">
-                  <Check className="w-12 h-12 text-green-400" />
+              <div className="w-24 h-24 mx-auto bg-green-100 rounded-full flex items-center justify-center ring-4 ring-green-200">
+                  <Check className="w-12 h-12 text-green-600" />
               </div>
-              <p className="text-gray-300 text-lg max-w-md mx-auto">Your booking for the <span className="font-bold text-white">{selectedVehicle?.name}</span> is complete. We've sent the details to your email.</p>
+              <p className="text-gray-600 text-lg max-w-md mx-auto">Your booking for the <span className="font-bold text-black">{selectedVehicle?.name}</span> is complete. We've sent the details to your email.</p>
           </div>
         )
       }
@@ -389,63 +404,64 @@ const App = () => {
   return (
     <>
     <style>{`
+      /* MUI DatePicker Light Theme Override */
       .MuiOutlinedInput-root {
-        background-color: rgba(31, 41, 55, 0.5) !important;
+        background-color: #f9fafb !important;
         border-radius: 8px !important;
       }
       .MuiOutlinedInput-notchedOutline {
-        border-color: #4b5563 !important;
+        border-color: #d1d5db !important;
       }
       .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline {
-        border-color: #6b7280 !important;
+        border-color: #9ca3af !important;
       }
       .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline {
-        border-color: #22d3ee !important;
+        border-color: #000000 !important;
       }
       .MuiInputLabel-root {
-        color: #9ca3af !important;
+        color: #6b7280 !important;
       }
       .MuiInputLabel-root.Mui-focused {
-        color: #22d3ee !important;
+        color: #000000 !important;
       }
       .MuiSvgIcon-root {
-        color: #9ca3af !important;
+        color: #6b7280 !important;
       }
       .MuiInputBase-input {
-        color: white !important;
+        color: #111827 !important;
       }
+      /* Calendar pop-up styles */
       .MuiDateCalendar-root {
-        background-color: #1f2937 !important;
-        color: white !important;
+        background-color: #ffffff !important;
+        color: #111827 !important;
       }
       .MuiDayCalendar-weekDayLabel {
-        color: #9ca3af !important;
+        color: #6b7280 !important;
       }
       .MuiPickersDay-root {
-        color: white !important;
+        color: #111827 !important;
       }
       .MuiPickersDay-root:not(.Mui-selected) {
-        border-color: #4b5563 !important;
+        border-color: #e5e7eb !important;
       }
       .MuiPickersDay-root.Mui-selected {
-        background-color: #06b6d4 !important;
-        color: black !important;
+        background-color: #000000 !important;
+        color: #ffffff !important;
       }
       .MuiPickersDay-today {
-        border-color: #22d3ee !important;
+        border-color: #000000 !important;
       }
       .MuiDialogActions-root .MuiButton-text {
-        color: #22d3ee !important;
+        color: #000000 !important;
       }
     `}</style>
-    <div className="min-h-screen bg-gray-900 text-white py-10 px-4 font-sans antialiased overflow-hidden">
-      <div className="absolute top-0 left-0 w-full h-full bg-grid-gray-700/[0.2] [mask-image:radial-gradient(ellipse_50%_50%_at_50%_50%,#000_60%,transparent_100%)]"></div>
+    <div className="min-h-screen bg-gray-100 text-gray-900 py-10 px-4 font-sans antialiased">
       <div className="relative max-w-5xl mx-auto z-10">
         <header className="text-center mb-10">
-          <h1 className="text-4xl md:text-5xl font-bold text-white mb-2 tracking-tighter">
+          <h1 className="text-4xl md:text-5xl font-bold text-black mb-2 tracking-tighter">
             Book Your Perfect Ride
           </h1>
-          <p className="text-gray-400 text-lg">Fast, Simple, and Secure Rentals.</p>
+          <p className="text-gray-500 text-lg">Fast, Simple, and Secure Rentals.</p>
         </header>
         
         {/* -- Progress Bar -- */}
@@ -454,24 +470,24 @@ const App = () => {
                 {allSteps.slice(0, 6).map((step, index) => (
                     <React.Fragment key={index}>
                         <div className="flex flex-col items-center z-10 text-center">
-                            <div className={`flex items-center justify-center w-12 h-12 rounded-full transition-all duration-500 border-2 ${ index < currentStep ? 'bg-cyan-400 border-cyan-400' : index === currentStep ? 'bg-gray-800 border-cyan-400 scale-110 shadow-[0_0_15px_rgba(34,211,238,0.5)]' : 'bg-gray-800 border-gray-700' }`}>
-                                {index < currentStep ? <Check className="w-6 h-6 text-black" /> : <step.icon className={`w-6 h-6 transition-colors ${index === currentStep ? 'text-cyan-400' : 'text-gray-500'}`} />}
+                            <div className={`flex items-center justify-center w-12 h-12 rounded-full transition-all duration-500 border-2 ${ index < currentStep ? 'bg-black border-black text-white' : index === currentStep ? 'bg-white border-black scale-110 shadow-lg' : 'bg-gray-200 border-gray-300' }`}>
+                                {index < currentStep ? <Check className="w-6 h-6" /> : <step.icon className={`w-6 h-6 transition-colors ${index === currentStep ? 'text-black' : 'text-gray-500'}`} />}
                             </div>
-                            <p className={`mt-2 text-xs font-semibold transition-colors ${index === currentStep ? 'text-white' : 'text-gray-500'}`}>{step.label}</p>
+                            <p className={`mt-2 text-xs font-semibold transition-colors ${index === currentStep ? 'text-black' : 'text-gray-400'}`}>{step.label}</p>
                         </div>
-                        {index < 5 && ( <div className={`flex-auto h-0.5 -mx-1 transition-all duration-500 ${index < currentStep ? 'bg-cyan-400' : 'bg-gray-700'}`}></div> )}
+                        {index < 5 && ( <div className={`flex-auto h-0.5 -mx-1 transition-all duration-500 ${index < currentStep ? 'bg-black' : 'bg-gray-200'}`}></div> )}
                     </React.Fragment>
                 ))}
             </div>
         </div>
 
-        <main className="bg-gray-800/40 rounded-2xl shadow-2xl shadow-black/20 p-6 sm:p-10 border border-gray-700 backdrop-blur-sm">
+        <main className="bg-white rounded-2xl shadow-xl shadow-gray-900/10 p-6 sm:p-10 border border-gray-200">
           <div className={`transition-all duration-300 ease-in-out ${isAnimatingOut ? 'opacity-0 transform -translate-x-4' : 'opacity-100 transform translate-x-0'}`}>
             <header className="text-center mb-8">
-              <h2 className="text-3xl font-bold text-white mb-1 tracking-tight">
+              <h2 className="text-3xl font-bold text-black mb-1 tracking-tight">
                 {allSteps[currentStep]?.title}
               </h2>
-              <p className="text-gray-400 text-lg">{allSteps[currentStep]?.subtitle}</p>
+              <p className="text-gray-500 text-lg">{allSteps[currentStep]?.subtitle}</p>
             </header>
             <div className="mb-8 min-h-[300px] flex items-center justify-center">
               {allSteps[currentStep]?.component()}
@@ -479,18 +495,18 @@ const App = () => {
             
             {/* --- NAVIGATION BUTTONS --- */}
             {currentStep < allSteps.length - 1 && (
-                 <div className="flex flex-col-reverse sm:flex-row justify-between items-center mt-8 pt-6 border-t border-gray-700/50">
+                 <div className="flex flex-col-reverse sm:flex-row justify-between items-center mt-8 pt-6 border-t border-gray-200">
                     <button 
                         onClick={handlePrev} 
                         disabled={currentStep === 0} 
-                        className="mt-4 sm:mt-0 text-gray-400 font-semibold rounded-lg px-6 py-3 transition-colors hover:text-white disabled:opacity-30 disabled:hover:text-gray-400"
+                        className="mt-4 sm:mt-0 text-gray-500 font-semibold rounded-lg px-6 py-3 transition-colors hover:text-black disabled:opacity-40 disabled:hover:text-gray-500"
                     >
                         Back
                     </button>
                     {currentStep < allSteps.length - 2 ? (
                         <button 
                             onClick={handleNext} 
-                            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-cyan-400 text-black font-bold rounded-lg px-8 py-3.5 transition-all duration-300 ease-in-out hover:bg-cyan-300 hover:shadow-[0_0_20px_rgba(34,211,238,0.5)] transform hover:-translate-y-1"
+                            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-black text-white font-bold rounded-lg px-8 py-3.5 transition-all duration-300 ease-in-out hover:bg-gray-800 transform hover:-translate-y-1"
                         >
                             <span>Next</span>
                             <ChevronRight className="w-5 h-5" />
@@ -499,9 +515,9 @@ const App = () => {
                         <button 
                             onClick={handleSubmit} 
                             disabled={isLoading} 
-                            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-green-500 text-black font-bold rounded-lg px-8 py-3.5 transition-all duration-300 ease-in-out hover:bg-green-400 hover:shadow-[0_0_20px_rgba(74,222,128,0.5)] transform hover:-translate-y-1 disabled:bg-gray-600 disabled:cursor-not-allowed"
+                            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-black text-white font-bold rounded-lg px-8 py-3.5 transition-all duration-300 ease-in-out hover:bg-gray-800 transform hover:-translate-y-1 disabled:bg-gray-400 disabled:cursor-not-allowed"
                         >
-                            {isLoading ? <><CircularProgress size={20} sx={{color: 'black'}} /><span>Booking...</span></> : <><span>Confirm & Book</span><Check className="w-5 h-5" /></>}
+                            {isLoading ? <><CircularProgress size={20} sx={{color: 'white'}} /><span>Booking...</span></> : <><span>Confirm & Book</span><Check className="w-5 h-5" /></>}
                         </button>
                     )}
                </div>
@@ -509,7 +525,7 @@ const App = () => {
           </div>
         </main>
         <footer className="text-center mt-8">
-            <p className="text-gray-600 text-sm">Powered by Gemini Rentals</p>
+            <p className="text-gray-400 text-sm">Powered by Shreyash Desai</p>
         </footer>
       </div>
     </div>
