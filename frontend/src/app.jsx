@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ChevronRight, ChevronLeft, Car, Bike, Calendar, User, Check, Building, Shapes, NotebookPen } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Car, Bike, Calendar, User, Check, Building, Shapes, ClipboardCheck } from 'lucide-react';
 import { CircularProgress } from '@mui/material';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
@@ -346,7 +346,7 @@ const App = () => {
         )
       },
       {
-        icon: NotebookPen,
+        icon: ClipboardCheck, // <-- THE FIX IS HERE
         label: "Confirm",
         title: "Confirm Your Booking",
         subtitle: "One final check before we finalize your ride.",
