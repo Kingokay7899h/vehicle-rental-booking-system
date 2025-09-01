@@ -246,15 +246,18 @@ const App = () => {
             {currentStep < 6 && (<div className="flex flex-col-reverse sm:flex-row justify-between items-center mt-auto pt-6 border-t border-ui-200">
               <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={handlePrev} disabled={currentStep === 0} className="mt-4 sm:mt-0 flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-text-secondary hover:text-text-primary hover:bg-ui-200">
                 <ArrowLeft size={16}/>
+                {/* FIXED: Wrapped text in a span for stable rendering during animation */}
                 <span>Back</span>
               </motion.button>
               {currentStep < 5 ? (
                 <motion.button whileHover={{ scale: 1.05, y: -2 }} whileTap={{ scale: 0.95 }} onClick={handleNext} className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 bg-primary text-white rounded-xl font-bold transition-all duration-300 shadow-lg shadow-primary/30">
+                  {/* FIXED: Wrapped text in a span for stable rendering during animation */}
                   <span>Next Step</span>
                   <ArrowRight size={16}/>
                 </motion.button>
               ) : (
                 <motion.button whileHover={{ scale: 1.05, y: -2 }} whileTap={{ scale: 0.95 }} onClick={handleSubmit} className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 bg-success text-white rounded-xl font-bold transition-all duration-300 shadow-lg shadow-success/30">
+                  {/* This button was already correct, no change needed */}
                   <span>Confirm & Book</span>
                   <Check size={16} />
                 </motion.button>
