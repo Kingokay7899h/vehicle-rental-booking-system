@@ -64,6 +64,10 @@ Built with a **step-by-step booking flow**, real-time validations, and **backend
 ### Step 6 – Review & Confirm Booking  
 ![Step 6 Screenshot](./images/step6.png)  
 
+### Booking Confirmed - Confirmation
+![Confirmation Screenshot](./images/booking-comfirmed.png)  
+
+
 ### Error Case – Double Booking Prevention  
 (Example: Trying to book the same car again in overlapping dates)  
 ![Error Screenshot](./images/error.png)  
