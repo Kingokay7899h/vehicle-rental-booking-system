@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ChevronRight, ChevronLeft, Car, Bike, Calendar, User, Check, Building, Shapes, ClipboardCheck } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Car, Bike, Calendar, User, Check, Building, Shapes, ClipboardCheck, XCircle } from 'lucide-react';
 import { CircularProgress } from '@mui/material';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
@@ -87,26 +87,28 @@ const VehicleCard = ({ model, isSelected, onClick }) => (
     </div>
 );
 
+const initialState = {
+  firstName: '',
+  lastName: '',
+  wheels: '',
+  vehicleType: '',
+  specificModel: '',
+  startDate: '',
+  endDate: '',
+  startDateObj: null,
+  endDateObj: null
+};
 
 const App = () => {
   const [currentStep, setCurrentStep] = useState(0);
-  const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
-    wheels: '',
-    vehicleType: '',
-    specificModel: '',
-    startDate: '',
-    endDate: '',
-    startDateObj: null,
-    endDateObj: null
-  });
+  const [formData, setFormData] = useState(initialState);
   const [errors, setErrors] = useState({});
   const [isAnimatingOut, setIsAnimatingOut] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [vehicleTypes, setVehicleTypes] = useState([]);
   const [vehicles, setVehicles] = useState([]);
   const [allVehicles, setAllVehicles] = useState([]);
+  const [bookingError, setBookingError] = useState(null);
 
   // --- DATA FETCHING & CLEANING LOGIC ---
   useEffect(() => {
@@ -196,6 +198,7 @@ const App = () => {
 
   const handleNext = () => {
     if (validateStep(currentStep)) {
+      setBookingError(null); // Clear any previous errors on success
       setIsAnimatingOut(true);
       setTimeout(() => {
         setCurrentStep(currentStep + 1);
@@ -213,6 +216,13 @@ const App = () => {
       setIsAnimatingOut(false);
     }, 300);
   };
+  
+  const handleReset = () => {
+    setFormData(initialState);
+    setCurrentStep(0);
+    setErrors({});
+    setBookingError(null);
+  }
 
   const handleSubmit = async () => {
     if (validateStep(4)) {
@@ -235,11 +245,11 @@ const App = () => {
         if (response.ok) {
           handleNext();
         } else {
-          alert(`Booking Failed: ${result.message}`);
+          setBookingError(result.message);
         }
       } catch (error) {
         setIsLoading(false);
-        alert('An error occurred during booking. Please try again.');
+        setBookingError('An unexpected error occurred. Please try again.');
       }
     }
   };
@@ -379,6 +389,17 @@ const App = () => {
                     <p className="text-2xl font-bold text-black mt-1">Total Price: ₹{totalPrice.toLocaleString()}</p>
                   </div>
               </div>
+              {bookingError && (
+                  <div className="mt-6 p-4 rounded-lg bg-red-50 border border-red-200 text-center space-y-2">
+                      <div className="flex items-center justify-center text-red-600">
+                          <XCircle className="w-6 h-6 mr-2" />
+                          <p className="font-semibold">{bookingError}</p>
+                      </div>
+                      <button onClick={() => setBookingError(null)} className="text-sm font-medium text-red-500 hover:text-red-700 transition-colors">
+                          Try Again
+                      </button>
+                  </div>
+              )}
           </div>
         )
       },
@@ -393,12 +414,18 @@ const App = () => {
                   <Check className="w-12 h-12 text-green-600" />
               </div>
               <p className="text-gray-600 text-lg max-w-md mx-auto">Your booking for the <span className="font-bold text-black">{selectedVehicle?.name}</span> is complete. We've sent the details to your email.</p>
+              <button
+                  onClick={handleReset}
+                  className="mt-6 inline-flex items-center justify-center gap-2 bg-black text-white font-bold rounded-lg px-8 py-3.5 transition-all duration-300 ease-in-out hover:bg-gray-800 transform hover:-translate-y-1"
+              >
+                  Book another ride
+              </button>
           </div>
         )
       }
     ];
     return steps;
-  }, [formData, errors, isLoading, vehicleTypes, vehicles, allVehicles]);
+  }, [formData, errors, isLoading, vehicleTypes, vehicles, allVehicles, bookingError]);
 
 
   return (
