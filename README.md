@@ -82,9 +82,9 @@ The following video demonstrates the **entire booking flow**:
 - 🔹 Successful booking confirmation  
 - 🔹 Attempting to rebook the same vehicle → error shown  
 
-👉 [![Watch the demo]
+👉 Watch the demo video
 
-https://github.com/user-attachments/assets/86d92725-797f-4b1e-b828-e8919ed3a339
+https://github.com/user-attachments/assets/59048db3-d241-4920-a712-4d649c9f55cd
 
 ▶️ Click the thumbnail above to view the full demo video.
 
