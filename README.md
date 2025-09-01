@@ -65,7 +65,7 @@ Built with a **step-by-step booking flow**, real-time validations, and **backend
 ![Step 6 Screenshot](./images/step6.png)  
 
 ### Booking Confirmed - Confirmation
-![Confirmation Screenshot](./images/booking-comfirmed.png)  
+![Confirmation Screenshot](./images/booking-confirmed.png)  
 
 
 ### Error Case – Double Booking Prevention  
