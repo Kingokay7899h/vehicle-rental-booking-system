@@ -12,16 +12,16 @@ const API_BASE_URL = 'http://localhost:5000/api';
 // --- Vehicle Image URLs ---
 const VEHICLE_IMAGES = {
     'Swift': 'https://i.postimg.cc/wxRHBsQ4/Picsart-25-09-01-10-13-14-464.png',
-    'Alto': 'https://i.postimg.cc/Znj0KcnC/Picsart-25-09-01-14-13-16-323.png',
-    'Tiago': 'https://i.postimg.cc/43TGqc4M/Picsart-25-09-01-14-12-12-034.jpg',
-    'Scorpio': 'https://i.postimg.cc/Dw040tqF/Picsart-25-09-01-14-13-29-281.jpg',
-    'XUV500': 'https://i.postimg.cc/rFKqrcYh/Picsart-25-09-01-14-12-28-028.png',
-    'Creta': 'https://i.postimg.cc/nrwZPwMY/Picsart-25-09-01-14-12-52-696.jpg',
-    'City': 'https://i.postimg.cc/TPczsH4L/Picsart-25-09-01-14-11-50-815.png',
+    'Alto': 'https://i.postimg.cc/25GhSvZd/Picsart-25-09-01-21-21-37-456.png',
+    'Tiago': 'https://i.postimg.cc/0NP7vZb2/Picsart-25-09-01-21-22-38-483.png',
+    'Scorpio': 'https://i.postimg.cc/YCsv9H29/Picsart-25-09-01-21-20-16-626.png',
+    'XUV500': 'https://i.postimg.cc/LXZLRsz2/Picsart-25-09-01-21-20-35-263.png',
+    'Creta': 'https://i.postimg.cc/vmKfpnx0/Picsart-25-09-01-21-20-46-904.png',
+    'City': 'https://i.postimg.cc/c1B63Y1P/Picsart-25-09-01-21-19-54-562.png',
     'Verna': 'https://i.postimg.cc/HnRfQ30v/Picsart-25-09-01-10-17-09-430.png',
-    'Ciaz': 'https://i.postimg.cc/qR55VfXR/Picsart-25-09-01-14-11-34-415.png',
+    'Ciaz': 'https://i.postimg.cc/28H6cDZw/Picsart-25-09-01-21-19-33-817.png',
     'Royal Enfield Classic 350': 'https://i.postimg.cc/8cczBkvt/Picsart-25-09-01-14-57-17-934.png',
-    'Avenger 220 Cruise': 'https://i.postimg.cc/m28Fbb18/Picsart-25-09-01-14-13-45-020.png',
+    'Avenger 220 Cruise': 'https://i.postimg.cc/DwVqj7hG/Picsart-25-09-01-21-23-05-676.png',
     'Jawa Perak': 'https://i.postimg.cc/RVfMgn3J/Picsart-25-09-01-10-09-53-588.png'
 };
 
@@ -475,7 +475,7 @@ const App = () => {
                             </div>
                             <p className={`mt-2 text-xs font-semibold transition-colors ${index === currentStep ? 'text-black' : 'text-gray-400'}`}>{step.label}</p>
                         </div>
-                        {index < 5 && ( <div className={`flex-auto h-0.5 -mx-1 transition-all duration-500 ${index < currentStep ? 'bg-black' : 'bg-gray-200'}`}></div> )}
+                        {index < 5 && ( <div className="flex-auto h-0.5 -mx-1 transition-all duration-500 ${index < currentStep ? 'bg-black' : 'bg-gray-200'}"></div> )}
                     </React.Fragment>
                 ))}
             </div>
@@ -534,3 +534,4 @@ const App = () => {
 };
 
 export default App;
+
