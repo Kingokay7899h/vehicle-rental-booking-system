@@ -1,12 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ChevronRight, ChevronLeft, Car, Bike, Calendar, User, Check, MapPin } from 'lucide-react';
-import {
-  Button,
-  Box,
-  Typography,
-  Paper,
-  CircularProgress
-} from '@mui/material';
+import { ChevronRight, ChevronLeft, Car, Bike, Calendar, User, Check, Building, Shapes, NotebookPen } from 'lucide-react';
+import { CircularProgress } from '@mui/material';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
@@ -32,6 +26,68 @@ const VEHICLE_IMAGES = {
     'Jawa Perak': 'https://i.postimg.cc/RVfMgn3J/Picsart-25-09-01-10-09-53-588.png'
 };
 
+// --- Custom Components for Clean UI ---
+
+const FormInput = ({ id, placeholder, value, onChange, error }) => (
+    <div className="relative">
+        <input 
+            id={id} 
+            type="text" 
+            placeholder={placeholder} 
+            value={value} 
+            onChange={onChange}
+            className={`w-full px-4 py-3.5 rounded-lg bg-gray-800/50 border-2 text-white placeholder-gray-500 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 ${error ? 'border-red-500/50 focus:border-red-500 focus:ring-red-500' : 'border-gray-700 focus:border-cyan-400 focus:ring-cyan-400'}`} 
+        />
+    </div>
+);
+
+const SelectionCard = ({ isSelected, onClick, children }) => (
+    <div 
+        onClick={onClick} 
+        className={`relative p-6 rounded-xl border-2 text-center cursor-pointer transition-all duration-300 transform-gpu group ${ 
+            isSelected 
+            ? 'border-cyan-400 bg-gray-800/60 ring-2 ring-cyan-400/50 ring-offset-2 ring-offset-gray-900' 
+            : 'border-gray-700 bg-gray-800/40 hover:border-gray-500 hover:-translate-y-1 hover:bg-gray-800/80' 
+        }`}
+    >
+        {children}
+        {isSelected && (
+            <div className="absolute -top-3 -right-3 w-6 h-6 bg-cyan-400 rounded-full flex items-center justify-center border-2 border-gray-900">
+                <Check className="w-4 h-4 text-black" />
+            </div>
+        )}
+    </div>
+);
+
+const VehicleCard = ({ model, isSelected, onClick }) => (
+    <div 
+        onClick={onClick}
+        className={`relative rounded-xl border-2 cursor-pointer transition-all duration-300 group overflow-hidden ${
+            isSelected 
+            ? 'border-cyan-400 bg-gray-800/60 ring-2 ring-cyan-400/50 ring-offset-2 ring-offset-gray-900' 
+            : 'border-gray-700 bg-gray-800/40 hover:border-gray-500 hover:-translate-y-1'
+        }`}
+    >
+        <div className="bg-gray-900/50 overflow-hidden aspect-video">
+            <img 
+                src={VEHICLE_IMAGES[model.name] || 'https://placehold.co/400x225/111827/FFF?text=Image'} 
+                alt={model.name} 
+                className="w-full h-full object-contain p-2 group-hover:scale-105 transition-transform duration-500 ease-in-out"
+                onError={(e) => { e.target.onerror = null; e.target.src='https://placehold.co/400x225/111827/FFF?text=Image+Not+Found'; }}
+            />
+        </div>
+        <div className="p-4 bg-gray-800/40">
+            <h3 className="font-bold text-lg text-white">{model.name}</h3>
+            <p className="text-cyan-300 font-semibold text-base">₹{model.price_per_day.toLocaleString()}/day</p>
+        </div>
+        {isSelected && (
+            <div className="absolute -top-3 -right-3 w-6 h-6 bg-cyan-400 rounded-full flex items-center justify-center border-2 border-gray-900">
+                <Check className="w-4 h-4 text-black" />
+            </div>
+        )}
+    </div>
+);
+
 const App = () => {
   const [currentStep, setCurrentStep] = useState(0);
   const [formData, setFormData] = useState({
@@ -46,13 +102,13 @@ const App = () => {
     endDateObj: null
   });
   const [errors, setErrors] = useState({});
-  const [isAnimating, setIsAnimating] = useState(false);
+  const [isAnimatingOut, setIsAnimatingOut] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [vehicleTypes, setVehicleTypes] = useState([]);
   const [vehicles, setVehicles] = useState([]);
   const [allVehicles, setAllVehicles] = useState([]);
 
-  // --- LOGIC FROM FIRST CODE (UNCHANGED) ---
+  // --- LOGIC FROM ORIGINAL CODE (UNCHANGED) ---
   useEffect(() => {
     const fetchVehicleTypes = async () => {
       try {
@@ -101,10 +157,10 @@ const App = () => {
         if (!formData.lastName.trim()) newErrors.lastName = 'Last name is required';
         break;
       case 1:
-        if (!formData.wheels) newErrors.wheels = 'Please select number of wheels';
+        if (!formData.wheels) newErrors.wheels = 'Please select the number of wheels';
         break;
       case 2:
-        if (!formData.vehicleType) newErrors.vehicleType = 'Please select vehicle type';
+        if (!formData.vehicleType) newErrors.vehicleType = 'Please select a vehicle type';
         break;
       case 3:
         if (!formData.specificModel) newErrors.specificModel = 'Please select a specific model';
@@ -112,7 +168,7 @@ const App = () => {
       case 4:
         if (!formData.startDate) newErrors.startDate = 'Start date is required';
         if (!formData.endDate) newErrors.endDate = 'End date is required';
-        if (formData.startDate && formData.endDate && new Date(formData.startDate) >= new Date(formData.endDate)) {
+        if (formData.startDate && formData.endDate && dayjs(formData.startDate).isAfter(dayjs(formData.endDate))) {
           newErrors.dateRange = 'End date must be after start date';
         }
         break;
@@ -125,19 +181,21 @@ const App = () => {
 
   const handleNext = () => {
     if (validateStep(currentStep)) {
-      setIsAnimating(true);
+      setIsAnimatingOut(true);
       setTimeout(() => {
         setCurrentStep(currentStep + 1);
-        setIsAnimating(false);
+        setErrors({});
+        setIsAnimatingOut(false);
       }, 300);
     }
   };
 
   const handlePrev = () => {
-    setIsAnimating(true);
+    setIsAnimatingOut(true);
     setTimeout(() => {
       setCurrentStep(currentStep - 1);
-      setIsAnimating(false);
+      setErrors({});
+      setIsAnimatingOut(false);
     }, 300);
   };
 
@@ -160,165 +218,166 @@ const App = () => {
         const result = await response.json();
         setIsLoading(false);
         if (response.ok) {
-          alert('Booking submitted successfully! 🎉');
-          console.log('Booking Result:', result);
-          setCurrentStep(currentStep + 1); 
+          handleNext();
         } else {
           alert(`Booking Failed: ${result.message}`);
-          console.error('Booking failed:', result.message);
         }
       } catch (error) {
         setIsLoading(false);
         alert('An error occurred during booking. Please try again.');
-        console.error('Error submitting booking:', error);
       }
     }
   };
 
-  const getVehicleInfo = (id) => {
-    return allVehicles.find(v => v.id === id);
-  };
+  const getVehicleInfo = (id) => allVehicles.find(v => v.id === id);
 
-  // --- DYNAMIC STEP CONFIGURATION FOR PERSONALIZATION ---
+  // --- DYNAMIC STEP CONFIGURATION FOR NEW UI ---
   const allSteps = useMemo(() => {
     const selectedVehicle = getVehicleInfo(formData.specificModel);
     const rentalDays = (formData.startDateObj && formData.endDateObj && formData.endDateObj.isAfter(formData.startDateObj)) 
-      ? formData.endDateObj.diff(formData.startDateObj, 'day') 
+      ? formData.endDateObj.diff(formData.startDateObj, 'day') + 1
       : 0;
     const totalPrice = selectedVehicle && rentalDays > 0 ? selectedVehicle.price_per_day * rentalDays : 0;
 
     const steps = [
       {
-        title: "What's your name?",
-        subtitle: "Let's start with the basics.",
+        icon: User,
+        label: "Details",
+        title: "Let's start with your name.",
+        subtitle: "We need this to personalize your booking.",
         component: () => (
           <div className="space-y-6 w-full max-w-lg">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <input id="firstName" type="text" placeholder="First Name" value={formData.firstName} onChange={e => setFormData({...formData, firstName: e.target.value})} className={`w-full px-4 py-3.5 rounded-lg border-2 bg-gray-100 transition-all duration-300 placeholder:text-gray-500 ${errors.firstName ? 'border-red-500 focus:border-red-500 ring-red-200' : 'border-gray-200 focus:border-black ring-gray-200'} focus:outline-none focus:ring-2`} />
-              <input id="lastName" type="text" placeholder="Last Name" value={formData.lastName} onChange={e => setFormData({...formData, lastName: e.target.value})} className={`w-full px-4 py-3.5 rounded-lg border-2 bg-gray-100 transition-all duration-300 placeholder:text-gray-500 ${errors.lastName ? 'border-red-500 focus:border-red-500 ring-red-200' : 'border-gray-200 focus:border-black ring-gray-200'} focus:outline-none focus:ring-2`} />
+              <FormInput id="firstName" placeholder="First Name" value={formData.firstName} onChange={e => setFormData({...formData, firstName: e.target.value})} error={errors.firstName} />
+              <FormInput id="lastName" placeholder="Last Name" value={formData.lastName} onChange={e => setFormData({...formData, lastName: e.target.value})} error={errors.lastName} />
             </div>
-            {(errors.firstName || errors.lastName) && <p className="text-red-500 text-sm text-center pt-2">⚠️ Please fill out both first and last name.</p>}
+            {(errors.firstName || errors.lastName) && <p className="text-red-400 text-sm text-center pt-2">Please fill out both first and last name.</p>}
           </div>
         )
       },
       {
-        title: `Okay, ${formData.firstName || 'friend'}! What's your ride type?`,
-        subtitle: "Choose your preferred number of wheels.",
+        icon: Shapes,
+        label: "Type",
+        title: `Hi ${formData.firstName}! Choose your ride style.`,
+        subtitle: "How many wheels will you be needing?",
         component: () => (
           <div className="w-full max-w-lg space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {[ { value: '4', label: '4 Wheels', icon: '🚗', desc: 'Cars & SUVs' }, { value: '2', label: '2 Wheels', icon: '🏍️', desc: 'Motorcycles' } ].map((option) => (
-                <div key={option.value} onClick={() => setFormData({...formData, wheels: option.value, vehicleType: '', specificModel: ''})} className={`p-6 rounded-lg border-2 text-center cursor-pointer transition-all duration-300 transform-gpu group ${ formData.wheels === option.value ? 'border-black bg-gray-100' : 'border-gray-200 bg-white hover:border-gray-400 hover:-translate-y-1 hover:shadow-lg' }`}>
-                  <div className="text-5xl mb-3">{option.icon}</div>
-                  <h3 className="font-bold text-lg text-black">{option.label}</h3>
-                  <p className="text-gray-500 text-sm">{option.desc}</p>
-                </div>
-              ))}
+                <SelectionCard isSelected={formData.wheels === '4'} onClick={() => setFormData({...formData, wheels: '4', vehicleType: '', specificModel: ''})}>
+                    <Car className="w-12 h-12 mx-auto mb-3 text-cyan-300"/>
+                    <h3 className="font-bold text-lg text-white">4 Wheels</h3>
+                    <p className="text-gray-400 text-sm">Cars & SUVs</p>
+                </SelectionCard>
+                <SelectionCard isSelected={formData.wheels === '2'} onClick={() => setFormData({...formData, wheels: '2', vehicleType: '', specificModel: ''})}>
+                    <Bike className="w-12 h-12 mx-auto mb-3 text-cyan-300"/>
+                    <h3 className="font-bold text-lg text-white">2 Wheels</h3>
+                    <p className="text-gray-400 text-sm">Motorcycles</p>
+                </SelectionCard>
             </div>
-            {errors.wheels && <p className="text-red-500 text-sm flex items-center gap-1 justify-center pt-2">⚠️ {errors.wheels}</p>}
+            {errors.wheels && <p className="text-red-400 text-sm text-center pt-2">{errors.wheels}</p>}
           </div>
         )
       },
       {
-        title: "Vehicle Category",
-        subtitle: "What style fits your journey?",
+        icon: Building,
+        label: "Category",
+        title: "What kind of vehicle fits?",
+        subtitle: "Select the category that suits your journey.",
         component: () => (
           <div className="w-full max-w-2xl space-y-4">
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               {vehicleTypes.filter(type => type.wheels == formData.wheels).map((type) => (
-                <div key={type.id} onClick={() => setFormData({...formData, vehicleType: type.id, specificModel: ''})} className={`p-6 rounded-lg border-2 text-center cursor-pointer transition-all duration-300 transform-gpu group ${ formData.vehicleType === type.id ? 'border-black bg-gray-100' : 'border-gray-200 bg-white hover:border-gray-400 hover:-translate-y-1 hover:shadow-lg' }`}>
-                  <h3 className="font-bold text-lg text-black">{type.name}</h3>
-                </div>
+                <SelectionCard key={type.id} isSelected={formData.vehicleType === type.id} onClick={() => setFormData({...formData, vehicleType: type.id, specificModel: ''})}>
+                  <h3 className="font-bold text-lg text-white py-4">{type.name}</h3>
+                </SelectionCard>
               ))}
             </div>
-            {errors.vehicleType && <p className="text-red-500 text-sm flex items-center gap-1 justify-center pt-2">⚠️ {errors.vehicleType}</p>}
+            {errors.vehicleType && <p className="text-red-400 text-sm text-center pt-2">{errors.vehicleType}</p>}
           </div>
         )
       },
       {
-        title: "Choose your ride",
-        subtitle: "Pick the perfect vehicle for your trip.",
+        icon: Car,
+        label: "Model",
+        title: "Choose your specific ride.",
+        subtitle: "Here are the available models in this category.",
         component: () => (
           <div className="space-y-6 w-full max-w-4xl">
-            {isLoading ? <div className="flex justify-center items-center h-48"><CircularProgress size={40} sx={{ color: '#000000' }} /></div> : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 max-h-[450px] overflow-y-auto p-2">
+            {isLoading ? <div className="flex justify-center items-center h-48"><CircularProgress sx={{ color: '#67e8f9' }} /></div> : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 max-h-[450px] overflow-y-auto p-2 -mr-2 pr-4">
                 {vehicles.map((model) => (
-                  <div key={model.id} onClick={() => setFormData({...formData, specificModel: model.id})} className={`rounded-lg border-2 cursor-pointer transition-all duration-300 group overflow-hidden ${ formData.specificModel === model.id ? 'border-black bg-gray-100' : 'border-gray-200 bg-white hover:border-gray-400 hover:shadow-lg hover:-translate-y-1'}`}>
-                    <div className="bg-gray-100 overflow-hidden aspect-video"><img src={VEHICLE_IMAGES[model.name]} alt={model.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-in-out"/></div>
-                    <div className="p-4 flex justify-between items-center">
-                      <div>
-                        <h3 className="font-bold text-lg text-black">{model.name}</h3>
-                        <p className="text-gray-700 font-semibold">₹{model.price_per_day}/day</p>
-                      </div>
-                      <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all duration-300 ${ formData.specificModel === model.id ? 'border-black bg-black' : 'border-gray-300 bg-white' }`}>{formData.specificModel === model.id && <Check className="w-4 h-4 text-white" />}</div>
-                    </div>
-                  </div>
+                  <VehicleCard key={model.id} model={model} isSelected={formData.specificModel === model.id} onClick={() => setFormData({...formData, specificModel: model.id})} />
                 ))}
               </div>
             )}
-            {errors.specificModel && <p className="text-red-500 text-sm flex items-center gap-1 justify-center pt-2">⚠️ {errors.specificModel}</p>}
+            {errors.specificModel && <p className="text-red-400 text-sm text-center pt-2">{errors.specificModel}</p>}
           </div>
         )
       },
       {
-        title: `Almost there, ${formData.firstName || 'friend'}!`,
-        subtitle: "Select your rental dates.",
+        icon: Calendar,
+        label: "Dates",
+        title: "When do you need it?",
+        subtitle: "Select your rental start and end dates.",
         component: () => (
           <LocalizationProvider dateAdapter={AdapterDayjs}>
             <div className="space-y-6 w-full max-w-xl">
-              <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2, alignItems: 'center', justifyContent: 'center' }}>
-                <DatePicker label="Start Date" value={formData.startDateObj} onChange={(newValue) => setFormData({ ...formData, startDateObj: newValue, startDate: newValue ? newValue.format('YYYY-MM-DD') : '', endDateObj: (formData.endDateObj && newValue && formData.endDateObj.isBefore(newValue)) ? null : formData.endDateObj, endDate: (formData.endDateObj && newValue && formData.endDateObj.isBefore(newValue)) ? '' : formData.endDate })} minDate={dayjs()} slotProps={{ textField: { error: !!errors.startDate, helperText: errors.startDate, fullWidth: true, sx: { '& .MuiOutlinedInput-root': { borderRadius: '8px', backgroundColor: '#f3f4f6' } } } }}/>
-                <Typography variant="body2" color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' } }}> → </Typography>
-                <DatePicker label="End Date" value={formData.endDateObj} onChange={(newValue) => setFormData({ ...formData, endDateObj: newValue, endDate: newValue ? newValue.format('YYYY-MM-DD') : '' })} minDate={formData.startDateObj ? formData.startDateObj.add(1, 'day') : dayjs()} disabled={!formData.startDateObj} slotProps={{ textField: { error: !!errors.endDate, helperText: errors.endDate, fullWidth: true, sx: { '& .MuiOutlinedInput-root': { borderRadius: '8px', backgroundColor: '#f3f4f6' } } } }}/>
-              </Box>
+              <div className="flex flex-col sm:flex-row gap-4 items-center justify-center">
+                <DatePicker label="Start Date" value={formData.startDateObj} onChange={(newValue) => setFormData({ ...formData, startDateObj: newValue, startDate: newValue ? newValue.format('YYYY-MM-DD') : '', endDateObj: (formData.endDateObj && newValue && formData.endDateObj.isBefore(newValue)) ? null : formData.endDateObj, endDate: (formData.endDateObj && newValue && formData.endDateObj.isBefore(newValue)) ? '' : formData.endDate })} minDate={dayjs()} slotProps={{ textField: { fullWidth: true } }}/>
+                <DatePicker label="End Date" value={formData.endDateObj} onChange={(newValue) => setFormData({ ...formData, endDateObj: newValue, endDate: newValue ? newValue.format('YYYY-MM-DD') : '' })} minDate={formData.startDateObj ? formData.startDateObj.add(1, 'day') : dayjs().add(1, 'day')} disabled={!formData.startDateObj} slotProps={{ textField: { fullWidth: true } }}/>
+              </div>
               {rentalDays > 0 && (
-                <Box sx={{ textAlign: 'center', mt: 2 }}>
-                  <Paper elevation={0} sx={{ p: 2, borderRadius: '8px', backgroundColor: '#f3f4f6' }}>
-                    <Typography variant="body1" color="text.secondary">
-                      Total Duration: <span className="font-bold text-black">{rentalDays} day(s)</span>
-                    </Typography>
+                <div className="text-center mt-2">
+                  <div className="p-4 rounded-lg bg-gray-800/50 border border-gray-700 inline-block">
+                    <p className="text-gray-300">
+                      Total Duration: <span className="font-bold text-white">{rentalDays} day(s)</span>
+                    </p>
                     {totalPrice > 0 && (
-                      <Typography variant="h6" sx={{ mt: 1, fontWeight: 'bold', color: 'black' }}>
+                      <p className="text-xl mt-1 font-bold text-cyan-300">
                         Estimated Price: ₹{totalPrice.toLocaleString()}
-                      </Typography>
+                      </p>
                     )}
-                  </Paper>
-                </Box>
+                  </div>
+                </div>
               )}
-              {errors.dateRange && <p className="text-red-500 text-sm flex items-center gap-1 justify-center pt-2">⚠️ {errors.dateRange}</p>}
+              {errors.dateRange && <p className="text-red-400 text-sm text-center pt-2">{errors.dateRange}</p>}
             </div>
           </LocalizationProvider>
         )
       },
       {
+        icon: NotebookPen,
+        label: "Confirm",
         title: "Confirm Your Booking",
-        subtitle: "One last check before we go.",
+        subtitle: "One final check before we finalize your ride.",
         component: () => (
-          <div className="text-center space-y-4 w-full max-w-2xl">
-              <Paper elevation={0} sx={{ p: { xs: 2, sm: 4 }, borderRadius: '12px', backgroundColor: '#ffffff', border: '1px solid #e5e7eb', textAlign: 'left' }}>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 text-gray-700">
-                      <div><p className="text-xs uppercase tracking-wider font-medium text-gray-500">Full Name</p><p className="font-semibold text-black">{formData.firstName} {formData.lastName}</p></div>
-                      <div><p className="text-xs uppercase tracking-wider font-medium text-gray-500">Vehicle</p><p className="font-semibold text-black">{selectedVehicle?.name || 'N/A'}</p></div>
-                      <div><p className="text-xs uppercase tracking-wider font-medium text-gray-500">Start Date</p><p className="font-semibold text-black">{dayjs(formData.startDate).format('MMM DD, YYYY')}</p></div>
-                      <div><p className="text-xs uppercase tracking-wider font-medium text-gray-500">End Date</p><p className="font-semibold text-black">{dayjs(formData.endDate).format('MMM DD, YYYY')}</p></div>
-                      <div className="sm:col-span-2 mt-2 pt-3 border-t">
-                        <p className="text-center text-lg text-gray-600">Total Duration: <span className="font-bold text-black">{rentalDays} days</span></p>
-                        <p className="text-center text-xl font-bold text-black">Total Price: ₹{totalPrice.toLocaleString()}</p>
-                      </div>
+          <div className="w-full max-w-2xl">
+              <div className="p-6 sm:p-8 rounded-xl bg-gray-800/50 border border-gray-700 text-left">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-6 text-gray-300">
+                      <div><p className="text-xs uppercase tracking-wider font-medium text-gray-500">Full Name</p><p className="font-semibold text-white text-lg">{formData.firstName} {formData.lastName}</p></div>
+                      <div><p className="text-xs uppercase tracking-wider font-medium text-gray-500">Vehicle</p><p className="font-semibold text-white text-lg">{selectedVehicle?.name || 'N/A'}</p></div>
+                      <div><p className="text-xs uppercase tracking-wider font-medium text-gray-500">Start Date</p><p className="font-semibold text-white text-lg">{dayjs(formData.startDate).format('MMM DD, YYYY')}</p></div>
+                      <div><p className="text-xs uppercase tracking-wider font-medium text-gray-500">End Date</p><p className="font-semibold text-white text-lg">{dayjs(formData.endDate).format('MMM DD, YYYY')}</p></div>
                   </div>
-              </Paper>
+                  <div className="mt-6 pt-6 border-t border-gray-700 text-center">
+                    <p className="text-gray-400">Total Duration: <span className="font-bold text-white">{rentalDays} days</span></p>
+                    <p className="text-2xl font-bold text-cyan-300 mt-1">Total Price: ₹{totalPrice.toLocaleString()}</p>
+                  </div>
+              </div>
           </div>
         )
       },
       {
+        icon: Check,
+        label: "Done",
         title: "Booking Confirmed!",
-        subtitle: "Get ready for your adventure.",
+        subtitle: `Get ready for your adventure, ${formData.firstName}.`,
         component: () => (
           <div className="text-center space-y-4 py-8">
-              <div className="w-24 h-24 mx-auto bg-green-100 rounded-full flex items-center justify-center">
-                  <Check className="w-12 h-12 text-green-600" />
+              <div className="w-24 h-24 mx-auto bg-green-500/10 rounded-full flex items-center justify-center ring-4 ring-green-500/20">
+                  <Check className="w-12 h-12 text-green-400" />
               </div>
-              <p className="text-gray-500 text-lg max-w-md mx-auto">Thank you, {formData.firstName}! Your booking for the {selectedVehicle?.name} is complete.</p>
+              <p className="text-gray-300 text-lg max-w-md mx-auto">Your booking for the <span className="font-bold text-white">{selectedVehicle?.name}</span> is complete. We've sent the details to your email.</p>
           </div>
         )
       }
@@ -328,67 +387,133 @@ const App = () => {
 
 
   return (
-    <div className="min-h-screen bg-gray-100 py-10 px-4 font-sans antialiased">
-      <div className="max-w-5xl mx-auto">
-        <div className="text-center mb-10">
-          <h1 className="text-4xl md:text-5xl font-bold text-black mb-2">
-            Book Your Ride
+    <>
+    <style>{`
+      .MuiOutlinedInput-root {
+        background-color: rgba(31, 41, 55, 0.5) !important;
+        border-radius: 8px !important;
+      }
+      .MuiOutlinedInput-notchedOutline {
+        border-color: #4b5563 !important;
+      }
+      .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline {
+        border-color: #6b7280 !important;
+      }
+      .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline {
+        border-color: #22d3ee !important;
+      }
+      .MuiInputLabel-root {
+        color: #9ca3af !important;
+      }
+      .MuiInputLabel-root.Mui-focused {
+        color: #22d3ee !important;
+      }
+      .MuiSvgIcon-root {
+        color: #9ca3af !important;
+      }
+      .MuiInputBase-input {
+        color: white !important;
+      }
+      .MuiDateCalendar-root {
+        background-color: #1f2937 !important;
+        color: white !important;
+      }
+      .MuiDayCalendar-weekDayLabel {
+        color: #9ca3af !important;
+      }
+      .MuiPickersDay-root {
+        color: white !important;
+      }
+      .MuiPickersDay-root:not(.Mui-selected) {
+        border-color: #4b5563 !important;
+      }
+      .MuiPickersDay-root.Mui-selected {
+        background-color: #06b6d4 !important;
+        color: black !important;
+      }
+      .MuiPickersDay-today {
+        border-color: #22d3ee !important;
+      }
+      .MuiDialogActions-root .MuiButton-text {
+        color: #22d3ee !important;
+      }
+    `}</style>
+    <div className="min-h-screen bg-gray-900 text-white py-10 px-4 font-sans antialiased overflow-hidden">
+      <div className="absolute top-0 left-0 w-full h-full bg-grid-gray-700/[0.2] [mask-image:radial-gradient(ellipse_50%_50%_at_50%_50%,#000_60%,transparent_100%)]"></div>
+      <div className="relative max-w-5xl mx-auto z-10">
+        <header className="text-center mb-10">
+          <h1 className="text-4xl md:text-5xl font-bold text-white mb-2 tracking-tighter">
+            Book Your Perfect Ride
           </h1>
-          <p className="text-gray-500 text-lg">Simple, fast, and reliable rentals.</p>
-        </div>
+          <p className="text-gray-400 text-lg">Fast, Simple, and Secure Rentals.</p>
+        </header>
         
         {/* -- Progress Bar -- */}
         <div className="mb-10 px-4 hidden sm:block">
             <div className="flex items-center">
                 {allSteps.slice(0, 6).map((step, index) => (
                     <React.Fragment key={index}>
-                        <div className="flex flex-col items-center z-10">
-                            <div className={`flex items-center justify-center w-10 h-10 rounded-full transition-all duration-500 ${ index < currentStep ? 'bg-green-500 text-white' : index === currentStep ? 'bg-black text-white scale-110' : 'bg-gray-200 text-gray-500' }`}>
-                                {index < currentStep ? <Check className="w-5 h-5" /> : <span className="font-semibold text-md">{index + 1}</span>}
+                        <div className="flex flex-col items-center z-10 text-center">
+                            <div className={`flex items-center justify-center w-12 h-12 rounded-full transition-all duration-500 border-2 ${ index < currentStep ? 'bg-cyan-400 border-cyan-400' : index === currentStep ? 'bg-gray-800 border-cyan-400 scale-110 shadow-[0_0_15px_rgba(34,211,238,0.5)]' : 'bg-gray-800 border-gray-700' }`}>
+                                {index < currentStep ? <Check className="w-6 h-6 text-black" /> : <step.icon className={`w-6 h-6 transition-colors ${index === currentStep ? 'text-cyan-400' : 'text-gray-500'}`} />}
                             </div>
+                            <p className={`mt-2 text-xs font-semibold transition-colors ${index === currentStep ? 'text-white' : 'text-gray-500'}`}>{step.label}</p>
                         </div>
-                        {index < 5 && ( <div className={`flex-auto h-1 -mx-1 transition-all duration-500 ${index < currentStep ? 'bg-black' : 'bg-gray-200'}`}></div> )}
+                        {index < 5 && ( <div className={`flex-auto h-0.5 -mx-1 transition-all duration-500 ${index < currentStep ? 'bg-cyan-400' : 'bg-gray-700'}`}></div> )}
                     </React.Fragment>
                 ))}
             </div>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-xl shadow-gray-900/10 p-6 sm:p-10">
-          <div className={`transition-all duration-300 ${isAnimating ? 'opacity-0 transform translate-x-4' : 'opacity-100 transform translate-x-0'}`}>
-            <div className="text-center mb-8">
-              <h2 className="text-3xl font-bold text-black mb-1">
+        <main className="bg-gray-800/40 rounded-2xl shadow-2xl shadow-black/20 p-6 sm:p-10 border border-gray-700 backdrop-blur-sm">
+          <div className={`transition-all duration-300 ease-in-out ${isAnimatingOut ? 'opacity-0 transform -translate-x-4' : 'opacity-100 transform translate-x-0'}`}>
+            <header className="text-center mb-8">
+              <h2 className="text-3xl font-bold text-white mb-1 tracking-tight">
                 {allSteps[currentStep]?.title}
               </h2>
-              <p className="text-gray-500 text-lg">{allSteps[currentStep]?.subtitle}</p>
-            </div>
+              <p className="text-gray-400 text-lg">{allSteps[currentStep]?.subtitle}</p>
+            </header>
             <div className="mb-8 min-h-[300px] flex items-center justify-center">
               {allSteps[currentStep]?.component()}
             </div>
             
             {/* --- NAVIGATION BUTTONS --- */}
             {currentStep < allSteps.length - 1 && (
-                 <div className="flex flex-col-reverse sm:flex-row justify-between items-center mt-8 pt-6 border-t border-gray-100">
-                 <Button onClick={handlePrev} disabled={currentStep === 0} variant="text" sx={{ textTransform: 'none', fontSize: '16px', fontWeight: 600, color: '#000000', borderRadius: '8px', padding: '12px 24px', '&:disabled': { color: '#9ca3af' } }}>
-                   Back
-                 </Button>
-                 {currentStep < allSteps.length - 2 ? (
-                   <Button onClick={handleNext} endIcon={<ChevronRight className="w-5 h-5" />} variant="contained" sx={{ textTransform: 'none', fontSize: '16px', fontWeight: 600, color: 'white', backgroundColor: '#000000', borderRadius: '8px', padding: '12px 32px', boxShadow: 'none', '&:hover': { backgroundColor: '#333333', transform: 'translateY(-2px)' } }}>
-                     Next
-                   </Button>
-                 ) : (
-                   <Button onClick={handleSubmit} disabled={isLoading} endIcon={isLoading ? <CircularProgress size={20} color="inherit" /> : <Check className="w-5 h-5" />} variant="contained" sx={{ textTransform: 'none', fontSize: '16px', fontWeight: 600, color: 'white', backgroundColor: '#000000', borderRadius: '8px', padding: '12px 32px', boxShadow: 'none', '&:hover': { backgroundColor: '#333333', transform: 'translateY(-2px)' }, '&:disabled': { backgroundColor: '#9ca3af' } }}>
-                     {isLoading ? 'Booking...' : 'Confirm & Book'}
-                   </Button>
-                 )}
+                 <div className="flex flex-col-reverse sm:flex-row justify-between items-center mt-8 pt-6 border-t border-gray-700/50">
+                    <button 
+                        onClick={handlePrev} 
+                        disabled={currentStep === 0} 
+                        className="mt-4 sm:mt-0 text-gray-400 font-semibold rounded-lg px-6 py-3 transition-colors hover:text-white disabled:opacity-30 disabled:hover:text-gray-400"
+                    >
+                        Back
+                    </button>
+                    {currentStep < allSteps.length - 2 ? (
+                        <button 
+                            onClick={handleNext} 
+                            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-cyan-400 text-black font-bold rounded-lg px-8 py-3.5 transition-all duration-300 ease-in-out hover:bg-cyan-300 hover:shadow-[0_0_20px_rgba(34,211,238,0.5)] transform hover:-translate-y-1"
+                        >
+                            <span>Next</span>
+                            <ChevronRight className="w-5 h-5" />
+                        </button>
+                    ) : (
+                        <button 
+                            onClick={handleSubmit} 
+                            disabled={isLoading} 
+                            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-green-500 text-black font-bold rounded-lg px-8 py-3.5 transition-all duration-300 ease-in-out hover:bg-green-400 hover:shadow-[0_0_20px_rgba(74,222,128,0.5)] transform hover:-translate-y-1 disabled:bg-gray-600 disabled:cursor-not-allowed"
+                        >
+                            {isLoading ? <><CircularProgress size={20} sx={{color: 'black'}} /><span>Booking...</span></> : <><span>Confirm & Book</span><Check className="w-5 h-5" /></>}
+                        </button>
+                    )}
                </div>
             )}
           </div>
-        </div>
+        </main>
         <footer className="text-center mt-8">
-            <p className="text-gray-400 text-sm">Powered by Gemini Rentals</p>
+            <p className="text-gray-600 text-sm">Powered by Gemini Rentals</p>
         </footer>
       </div>
     </div>
+    </>
   );
 };
 
