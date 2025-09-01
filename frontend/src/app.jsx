@@ -40,7 +40,7 @@ const InputField = memo(({ id, placeholder, value, onChange, error, icon }) => (
         <div className="absolute left-4 top-1/2 -translate-y-1/2 text-text-secondary transition-colors duration-300">{icon}</div>
         <input id={id} type="text" placeholder={placeholder} value={value} onChange={onChange} className={`w-full pl-12 pr-4 py-3.5 rounded-xl border-2 bg-ui-100 transition-all duration-300 placeholder:text-text-secondary ${error ? 'border-danger focus:border-danger focus:ring-danger-light' : 'border-ui-200 focus:border-primary focus:ring-primary-light'} focus:outline-none focus:ring-4`} />
         <AnimatePresence>
-            {error && <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="absolute -bottom-5 left-1 text-xs text-white font-semibold py-0.5 px-2 rounded-md bg-danger shadow-lg shadow-danger/30">
+            {error && <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="absolute -bottom-5 left-1 text-xs text-white font-semibold py-0.5 px-2 rounded-md bg-danger shadow-lg shadow-danger/30 z-10">
                 <div className="absolute -top-1 left-3 w-0 h-0 border-l-4 border-l-transparent border-r-4 border-r-transparent border-b-4 border-b-danger"></div>
                 {error}
             </motion.div>}
@@ -243,9 +243,9 @@ const App = () => {
               </AnimatePresence>
             </div>
             {currentStep < 6 && (<div className="flex flex-col-reverse sm:flex-row justify-between items-center mt-auto pt-6 border-t border-ui-200">
-              <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={handlePrev} disabled={currentStep === 0} className="mt-4 sm:mt-0 flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-text-secondary hover:text-text-primary hover:bg-ui-200"><ArrowLeft size={16}/>Back</motion.button>
+              <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={handlePrev} disabled={currentStep === 0} className="mt-4 sm:mt-0 flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-text-secondary hover:text-text-primary hover:bg-ui-200"><ArrowLeft size={16}/><span>Back</span></motion.button>
               {currentStep < 5 ? (
-                <motion.button whileHover={{ scale: 1.05, y: -2 }} whileTap={{ scale: 0.95 }} onClick={handleNext} className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 bg-primary text-white rounded-xl font-bold transition-all duration-300 shadow-lg shadow-primary/30">Next Step<ArrowRight size={16}/></motion.button>
+                <motion.button whileHover={{ scale: 1.05, y: -2 }} whileTap={{ scale: 0.95 }} onClick={handleNext} className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 bg-primary text-white rounded-xl font-bold transition-all duration-300 shadow-lg shadow-primary/30"><span>Next Step</span><ArrowRight size={16}/></motion.button>
               ) : (
                 <motion.button whileHover={{ scale: 1.05, y: -2 }} whileTap={{ scale: 0.95 }} onClick={handleSubmit} className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 bg-success text-white rounded-xl font-bold transition-all duration-300 shadow-lg shadow-success/30"><span>Confirm & Book</span><Check size={16} /></motion.button>
               )}
