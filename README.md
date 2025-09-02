@@ -146,9 +146,9 @@ Shreyash Pramod Desai
 
 📫 Contact:
 
-📧 Email: [your email]
+📧 Email: [Shreyashdesai60@gmail.com]
 
-💼 LinkedIn: [your LinkedIn]
+💼 LinkedIn: [https://www.linkedin.com/in/shreyash-desai-892a4a371?utm_source=share&utm_campaign=share_via&utm_content=profile&utm_medium=android_app]
 
-💻 GitHub: [your GitHub]
+💻 GitHub: []
 
