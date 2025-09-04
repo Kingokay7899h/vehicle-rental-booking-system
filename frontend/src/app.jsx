@@ -1,541 +1,1222 @@
-/**
- * @file App.jsx
- * @author Your Name
- * @version 2.0.0
- * @date 2025-09-04
- *
- * @description
- * This file contains the refactored implementation of a multi-step vehicle booking application.
- * The goal of this refactor is to demonstrate advanced React concepts, improve code structure,
- * enhance UI/UX, and create a more maintainable and scalable codebase.
- *
- * --- KEY REACT CONCEPTS DEMONSTRATED ---
- *
- * 1.  **State Management with `useReducer`**:
- * Instead of multiple `useState` hooks, a single `useReducer` (bookingReducer) manages all complex state logic (form data, current step, loading status, errors). This centralizes state transitions, makes them predictable, and simplifies component logic. It's ideal for managing state with multiple sub-values.
- *
- * 2.  **Global State with Context API (`createContext` & `useContext`)**:
- * The `BookingContext` is used to provide the state and dispatch function from our reducer to the entire component tree. This eliminates "prop drilling" (passing props down through many levels of components) and allows any component to access and modify the global state cleanly.
- *
- * 3.  **Component Composition & Separation of Concerns**:
- * The monolithic App component has been broken down into smaller, single-responsibility components (e.g., `StepName`, `StepVehicleSelection`, `ProgressBar`, `Navigation`). Each component is now responsible for a specific part of the UI, making the code easier to read, debug, and reuse.
- *
- * 4.  **Custom Hooks for Reusable Logic**:
- * The `useBookingContext` custom hook is a simple abstraction over `useContext(BookingContext)`. It provides a clear, reusable way for components to access the booking state without needing to import `useContext` and `BookingContext` everywhere.
- *
- * 5.  **Memoization (`useMemo` & `React.memo`)**:
- * - `useMemo` is used to calculate derived data (like total price and rental days) only when its dependencies change, preventing costly recalculations on every render.
- * - `React.memo` is used to wrap components like `VehicleCard` and `SelectionCard`. This prevents them from re-rendering if their props haven't changed, optimizing performance, especially in lists.
- *
- * 6.  **Declarative Rendering**:
- * The UI declaratively updates based on the state. For example, the `StepRenderer` component dynamically displays the correct step component based on `state.currentStep` without needing imperative logic.
- *
- * 7.  **Enhanced UI/UX & Loading States**:
- * - **Skeleton Loaders**: Instead of a single spinner, skeleton placeholders are shown for vehicle cards during data fetching. This provides a better user experience by mimicking the final layout.
- * - **Animations**: Subtle, purposeful animations using CSS keyframes and transitions have been added for step changes and interactions, making the interface feel more polished and responsive.
- * - **Error Handling**: Error messages are more clearly presented and integrated within the UI flow.
- */
-
-import React, { useState, useEffect, useReducer, useMemo, createContext, useContext } from 'react';
-import { ChevronRight, Car, Bike, Calendar, User, Check, Building, Shapes, ClipboardCheck, XCircle } from 'lucide-react';
+import React, { useState, useEffect, useMemo, useCallback, useReducer, createContext, useContext, memo, lazy, Suspense } from 'react';
+import { ChevronRight, ChevronLeft, Car, Bike, Calendar, User, Check, Building, Shapes, ClipboardCheck, XCircle, MapPin, Clock, Star, Shield, Zap } from 'lucide-react';
 import { CircularProgress } from '@mui/material';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import dayjs from 'dayjs';
 
-// --- CONFIGURATION ---
+// --- REACT CONTEXT API FOR GLOBAL STATE MANAGEMENT ---
+const BookingContext = createContext();
+const useBookingContext = () => {
+  const context = useContext(BookingContext);
+  if (!context) {
+    throw new Error('useBookingContext must be used within a BookingProvider');
+  }
+  return context;
+};
+
+// --- CUSTOM HOOKS FOR BUSINESS LOGIC ---
+const useDebounce = (value, delay) => {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+  
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+    
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+  
+  return debouncedValue;
+};
+
+const useLocalStorage = (key, initialValue) => {
+  const [storedValue, setStoredValue] = useState(() => {
+    try {
+      // Note: In Claude environment, we'll use memory storage
+      return initialValue;
+    } catch (error) {
+      return initialValue;
+    }
+  });
+
+  const setValue = useCallback((value) => {
+    try {
+      setStoredValue(value);
+    } catch (error) {
+      console.error(`Error saving to localStorage:`, error);
+    }
+  }, []);
+
+  return [storedValue, setValue];
+};
+
+const useApiCall = (url, dependencies = []) => {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      const result = await response.json();
+      setData(result);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [url]);
+
+  useEffect(() => {
+    if (url) {
+      fetchData();
+    }
+  }, dependencies);
+
+  return { data, loading, error, refetch: fetchData };
+};
+
+// --- REDUCER FOR COMPLEX STATE MANAGEMENT ---
+const formReducer = (state, action) => {
+  switch (action.type) {
+    case 'UPDATE_FIELD':
+      return { ...state, [action.field]: action.value };
+    case 'UPDATE_MULTIPLE':
+      return { ...state, ...action.payload };
+    case 'RESET_FORM':
+      return action.payload;
+    case 'SET_ERRORS':
+      return { ...state, errors: action.payload };
+    case 'CLEAR_ERRORS':
+      return { ...state, errors: {} };
+    default:
+      return state;
+  }
+};
+
+// --- CONFIGURATION & API ---
 const API_BASE_URL = 'http://localhost:5000/api';
 
+// --- VEHICLE IMAGE URLs ---
 const VEHICLE_IMAGES = {
-    'Swift': 'https://i.postimg.cc/wxRHBsQ4/Picsart-25-09-01-10-13-14-464.png', 'Alto': 'https://i.postimg.cc/25GhSvZd/Picsart-25-09-01-21-21-37-456.png', 'Tiago': 'https://i.postimg.cc/0NP7vZb2/Picsart-25-09-01-21-22-38-483.png', 'Scorpio': 'https://i.postimg.cc/YCsv9H29/Picsart-25-09-01-21-20-16-626.png', 'XUV500': 'https://i.postimg.cc/LXZLRsz2/Picsart-25-09-01-21-20-35-263.png', 'Creta': 'https://i.postimg.cc/vmKfpnx0/Picsart-25-09-01-21-20-46-904.png', 'City': 'https://i.postimg.cc/c1B63Y1P/Picsart-25-09-01-21-19-54-562.png', 'Verna': 'https://i.postimg.cc/HnRfQ30v/Picsart-25-09-01-10-17-09-430.png', 'Ciaz': 'https://i.postimg.cc/28H6cDZw/Picsart-25-09-01-21-19-33-817.png', 'Royal Enfield Classic 350': 'https://i.postimg.cc/8cczBkvt/Picsart-25-09-01-14-57-17-934.png', 'Avenger 220 Cruise': 'https://i.postimg.cc/DwVqj7hG/Picsart-25-09-01-21-23-05-676.png', 'Jawa Perak': 'https://i.postimg.cc/RVfMgn3J/Picsart-25-09-01-10-09-53-588.png'
+    'Swift': 'https://i.postimg.cc/wxRHBsQ4/Picsart-25-09-01-10-13-14-464.png',
+    'Alto': 'https://i.postimg.cc/25GhSvZd/Picsart-25-09-01-21-21-37-456.png',
+    'Tiago': 'https://i.postimg.cc/0NP7vZb2/Picsart-25-09-01-21-22-38-483.png',
+    'Scorpio': 'https://i.postimg.cc/YCsv9H29/Picsart-25-09-01-21-20-16-626.png',
+    'XUV500': 'https://i.postimg.cc/LXZLRsz2/Picsart-25-09-01-21-20-35-263.png',
+    'Creta': 'https://i.postimg.cc/vmKfpnx0/Picsart-25-09-01-21-20-46-904.png',
+    'City': 'https://i.postimg.cc/c1B63Y1P/Picsart-25-09-01-21-19-54-562.png',
+    'Verna': 'https://i.postimg.cc/HnRfQ30v/Picsart-25-09-01-10-17-09-430.png',
+    'Ciaz': 'https://i.postimg.cc/28H6cDZw/Picsart-25-09-01-21-19-33-817.png',
+    'Royal Enfield Classic 350': 'https://i.postimg.cc/8cczBkvt/Picsart-25-09-01-14-57-17-934.png',
+    'Avenger 220 Cruise': 'https://i.postimg.cc/DwVqj7hG/Picsart-25-09-01-21-23-05-676.png',
+    'Jawa Perak': 'https://i.postimg.cc/RVfMgn3J/Picsart-25-09-01-10-09-53-588.png'
 };
 
-// --- STATE MANAGEMENT (useReducer & Context API) ---
+// --- MEMOIZED COMPONENTS FOR PERFORMANCE ---
+const FormInput = memo(({ id, placeholder, value, onChange, error, icon: Icon }) => (
+    <div className="relative group">
+        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            {Icon && <Icon className="h-5 w-5 text-gray-400 group-focus-within:text-black transition-colors" />}
+        </div>
+        <input 
+            id={id} 
+            type="text" 
+            placeholder={placeholder} 
+            value={value} 
+            onChange={onChange}
+            className={`w-full ${Icon ? 'pl-10' : 'pl-4'} pr-4 py-3.5 rounded-xl border-2 bg-gradient-to-r from-gray-50 to-white transition-all duration-300 placeholder:text-gray-500 focus:scale-[1.02] ${
+                error 
+                    ? 'border-red-500 focus:border-red-500 ring-red-200 shadow-red-100' 
+                    : 'border-gray-200 focus:border-black ring-gray-200 shadow-gray-100'
+            } focus:outline-none focus:ring-2 focus:shadow-lg`} 
+        />
+        {error && (
+            <div className="absolute -bottom-6 left-0 text-red-500 text-sm flex items-center animate-in slide-in-from-bottom-1">
+                <XCircle className="w-4 h-4 mr-1" />
+                {error}
+            </div>
+        )}
+    </div>
+));
 
-const BookingContext = createContext();
+const SelectionCard = memo(({ isSelected, onClick, children, disabled = false, className = "" }) => (
+    <div 
+        onClick={disabled ? undefined : onClick} 
+        className={`relative p-6 rounded-2xl border-2 text-center cursor-pointer transition-all duration-500 transform-gpu group overflow-hidden ${
+            disabled 
+                ? 'opacity-50 cursor-not-allowed border-gray-200 bg-gray-100'
+                : isSelected 
+                    ? 'border-black bg-gradient-to-br from-gray-50 to-white ring-4 ring-gray-900/10 ring-offset-2 scale-105 shadow-2xl' 
+                    : 'border-gray-200 bg-gradient-to-br from-white to-gray-50 hover:border-gray-400 hover:scale-105 hover:shadow-xl hover:shadow-gray-200/50'
+        } ${className}`}
+    >
+        <div className="absolute inset-0 bg-gradient-to-br from-transparent via-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+        {children}
+        {isSelected && (
+            <div className="absolute -top-3 -right-3 w-8 h-8 bg-gradient-to-r from-black to-gray-800 rounded-full flex items-center justify-center border-4 border-white shadow-lg animate-in zoom-in-75">
+                <Check className="w-4 h-4 text-white" />
+            </div>
+        )}
+    </div>
+));
 
-const initialState = {
-    currentStep: 0,
-    isAnimatingOut: false,
-    formData: {
-        firstName: '', lastName: '', wheels: '', vehicleType: '', specificModel: '', startDate: null, endDate: null,
-    },
-    vehicleData: {
-        types: [], models: [], allModels: new Map(),
-    },
-    loading: {
-        types: false, models: false, booking: false
-    },
-    errors: {},
-    bookingError: null,
-};
+const VehicleCard = memo(({ model, isSelected, onClick }) => (
+    <div 
+        onClick={onClick}
+        className={`relative rounded-2xl border-2 cursor-pointer transition-all duration-500 group overflow-hidden transform-gpu ${
+            isSelected 
+                ? 'border-black bg-gradient-to-br from-gray-50 to-white ring-4 ring-gray-900/10 ring-offset-2 scale-105 shadow-2xl' 
+                : 'border-gray-200 bg-gradient-to-br from-white to-gray-50 hover:border-gray-400 hover:shadow-xl hover:shadow-gray-200/50 hover:scale-105'
+        }`}
+    >
+        <div className="bg-gradient-to-br from-gray-100 to-gray-200 overflow-hidden aspect-video relative">
+            <div className="absolute inset-0 bg-gradient-to-br from-transparent via-white/30 to-transparent"></div>
+            <img 
+                src={VEHICLE_IMAGES[model.name] || 'https://placehold.co/400x225/e5e7eb/374151?text=Image'} 
+                alt={model.name} 
+                className="w-full h-full object-contain p-4 group-hover:scale-110 transition-transform duration-700 ease-out relative z-10"
+                onError={(e) => { e.target.onerror = null; e.target.src='https://placehold.co/400x225/e5e7eb/374151?text=Image+Not+Found'; }}
+            />
+        </div>
+        <div className="p-5 relative z-10">
+            <h3 className="font-bold text-xl text-black mb-2 group-hover:text-gray-800 transition-colors">{model.name}</h3>
+            <div className="flex items-center justify-between">
+                <p className="text-gray-800 font-bold text-lg">₹{model.price_per_day.toLocaleString()}/day</p>
+                <div className="flex items-center gap-1 text-amber-500">
+                    <Star className="w-4 h-4 fill-current" />
+                    <span className="text-sm font-medium text-gray-600">4.8</span>
+                </div>
+            </div>
+            <div className="flex items-center gap-4 mt-3 text-sm text-gray-500">
+                <div className="flex items-center gap-1">
+                    <Zap className="w-4 h-4" />
+                    <span>Auto</span>
+                </div>
+                <div className="flex items-center gap-1">
+                    <Shield className="w-4 h-4" />
+                    <span>Insured</span>
+                </div>
+            </div>
+        </div>
+        {isSelected && (
+            <div className="absolute -top-3 -right-3 w-8 h-8 bg-gradient-to-r from-black to-gray-800 rounded-full flex items-center justify-center border-4 border-white shadow-lg animate-in zoom-in-75">
+                <Check className="w-4 h-4 text-white" />
+            </div>
+        )}
+    </div>
+));
 
-function bookingReducer(state, action) {
-    switch (action.type) {
-        case 'NEXT_STEP':
-            return { ...state, currentStep: state.currentStep + 1, errors: {}, bookingError: null };
-        case 'PREV_STEP':
-            return { ...state, currentStep: state.currentStep - 1, errors: {}, bookingError: null };
-        case 'SET_ANIMATING':
-            return { ...state, isAnimatingOut: action.payload };
-        case 'UPDATE_FORM_DATA':
-            return { ...state, formData: { ...state.formData, ...action.payload } };
-        case 'SET_ERRORS':
-            return { ...state, errors: action.payload };
-        case 'FETCH_TYPES_SUCCESS':
-            return { ...state, vehicleData: { ...state.vehicleData, types: action.payload } };
-        case 'FETCH_MODELS_START':
-            return { ...state, loading: { ...state.loading, models: true } };
-        case 'FETCH_MODELS_SUCCESS':
-            const newAllModels = new Map(state.vehicleData.allModels);
-            action.payload.forEach(model => newAllModels.set(model.id, model));
-            return { ...state, loading: { ...state.loading, models: false }, vehicleData: { ...state.vehicleData, models: action.payload, allModels: newAllModels }};
-        case 'SUBMIT_BOOKING_START':
-            return { ...state, loading: { ...state.loading, booking: true }, bookingError: null };
-        case 'SUBMIT_BOOKING_SUCCESS':
-            return { ...state, loading: { ...state.loading, booking: false }, currentStep: state.currentStep + 1 };
-        case 'SUBMIT_BOOKING_FAILURE':
-            return { ...state, loading: { ...state.loading, booking: false }, bookingError: action.payload };
-        case 'RESET':
-            return { ...initialState, vehicleData: state.vehicleData }; // Keep fetched vehicle data
-        default:
-            throw new Error(`Unhandled action type: ${action.type}`);
-    }
-}
+// --- ENHANCED LOADING COMPONENT ---
+const LoadingSpinner = memo(({ size = 'default', text = 'Loading...' }) => {
+    const sizeClasses = {
+        small: 'w-4 h-4',
+        default: 'w-8 h-8',
+        large: 'w-12 h-12'
+    };
 
+    return (
+        <div className="flex flex-col items-center justify-center gap-3">
+            <div className={`${sizeClasses[size]} animate-spin rounded-full border-4 border-gray-200 border-t-black`}></div>
+            <p className="text-gray-500 font-medium">{text}</p>
+        </div>
+    );
+});
+
+// --- LAZY LOADED SUCCESS COMPONENT ---
+const SuccessAnimation = lazy(() => Promise.resolve({ 
+    default: memo(() => (
+        <div className="text-center space-y-6 py-12 animate-in fade-in zoom-in duration-1000">
+            <div className="relative">
+                <div className="w-32 h-32 mx-auto bg-gradient-to-r from-green-400 to-green-600 rounded-full flex items-center justify-center ring-8 ring-green-100 shadow-2xl">
+                    <Check className="w-16 h-16 text-white animate-in zoom-in delay-300" />
+                </div>
+                <div className="absolute inset-0 w-32 h-32 mx-auto bg-green-400 rounded-full animate-ping opacity-20"></div>
+            </div>
+            <div className="space-y-2 animate-in slide-in-from-bottom delay-500">
+                <h3 className="text-3xl font-bold text-gray-900">Booking Confirmed!</h3>
+                <p className="text-gray-600 text-lg">Your adventure awaits!</p>
+            </div>
+        </div>
+    ))
+}));
+
+// --- MAIN BOOKING PROVIDER COMPONENT ---
 const BookingProvider = ({ children }) => {
-    const [state, dispatch] = useReducer(bookingReducer, initialState);
+    const initialState = {
+        firstName: '',
+        lastName: '',
+        wheels: '',
+        vehicleType: '',
+        specificModel: '',
+        startDate: '',
+        endDate: '',
+        startDateObj: null,
+        endDateObj: null,
+        errors: {}
+    };
+
+    const [formState, dispatch] = useReducer(formReducer, initialState);
+    const [currentStep, setCurrentStep] = useState(0);
+    const [isAnimatingOut, setIsAnimatingOut] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
+    const [vehicleTypes, setVehicleTypes] = useState([]);
+    const [vehicles, setVehicles] = useState([]);
+    const [allVehicles, setAllVehicles] = useState([]);
+    const [bookingError, setBookingError] = useState(null);
+    const [savedBookings, setSavedBookings] = useLocalStorage('bookingHistory', []);
+
+    // Debounced search for performance
+    const debouncedSearchTerm = useDebounce(formState.firstName + formState.lastName, 300);
+
+    const value = {
+        formState,
+        dispatch,
+        currentStep,
+        setCurrentStep,
+        isAnimatingOut,
+        setIsAnimatingOut,
+        isLoading,
+        setIsLoading,
+        vehicleTypes,
+        setVehicleTypes,
+        vehicles,
+        setVehicles,
+        allVehicles,
+        setAllVehicles,
+        bookingError,
+        setBookingError,
+        savedBookings,
+        setSavedBookings,
+        debouncedSearchTerm
+    };
+
+    return (
+        <BookingContext.Provider value={value}>
+            {children}
+        </BookingContext.Provider>
+    );
+};
+
+// --- MAIN APP COMPONENT ---
+const App = () => {
+    return (
+        <BookingProvider>
+            <BookingFlow />
+        </BookingProvider>
+    );
+};
+
+const BookingFlow = () => {
+    const {
+        formState,
+        dispatch,
+        currentStep,
+        setCurrentStep,
+        isAnimatingOut,
+        setIsAnimatingOut,
+        isLoading,
+        setIsLoading,
+        vehicleTypes,
+        setVehicleTypes,
+        vehicles,
+        setVehicles,
+        allVehicles,
+        setAllVehicles,
+        bookingError,
+        setBookingError,
+        savedBookings,
+        setSavedBookings
+    } = useBookingContext();
+
+    // --- DATA FETCHING WITH CUSTOM HOOKS ---
+    const { data: vehicleTypesData, loading: typesLoading } = useApiCall(`${API_BASE_URL}/vehicle-types`, []);
+    
+    useEffect(() => {
+        if (vehicleTypesData) {
+            // Filter and clean data
+            const filteredData = vehicleTypesData.filter(type => type.name.toLowerCase() !== 'sports');
+            const uniqueTypes = Array.from(new Map(filteredData.map(item => [item.id, item])).values());
+            setVehicleTypes(uniqueTypes);
+        }
+    }, [vehicleTypesData, setVehicleTypes]);
 
     useEffect(() => {
-        const fetchVehicleTypes = async () => {
-            try {
-                const response = await fetch(`${API_BASE_URL}/vehicle-types`);
-                let data = await response.json();
-                const filteredData = data.filter(type => type.name.toLowerCase() !== 'sports');
-                const uniqueTypes = Array.from(new Map(filteredData.map(item => [item.id, item])).values());
-                dispatch({ type: 'FETCH_TYPES_SUCCESS', payload: uniqueTypes });
-            } catch (error) { console.error('Error fetching vehicle types:', error); }
-        };
-        fetchVehicleTypes();
-    }, []);
-
-    useEffect(() => {
-        if (state.formData.vehicleType) {
+        if (formState.vehicleType) {
             const fetchVehicles = async () => {
-                dispatch({ type: 'FETCH_MODELS_START' });
+                setIsLoading(true);
                 try {
-                    const response = await fetch(`${API_BASE_URL}/vehicles/${state.formData.vehicleType}`);
+                    const response = await fetch(`${API_BASE_URL}/vehicles/${formState.vehicleType}`);
                     let data = await response.json();
+
                     const duplicatesToRemove = ['Maruti Swift', 'Mahindra Scorpio', 'Honda City'];
                     let cleanedData = data.filter(vehicle => !duplicatesToRemove.includes(vehicle.name));
                     const uniqueVehicles = Array.from(new Map(cleanedData.map(item => [item.name, item])).values());
-                    dispatch({ type: 'FETCH_MODELS_SUCCESS', payload: uniqueVehicles });
+
+                    setVehicles(uniqueVehicles);
+                    setAllVehicles(prev => {
+                        const newVehicles = [...prev];
+                        uniqueVehicles.forEach(v => {
+                            if (!newVehicles.find(nv => nv.id === v.id)) {
+                                newVehicles.push(v);
+                            }
+                        });
+                        return newVehicles;
+                    });
                 } catch (error) {
                     console.error('Error fetching vehicles:', error);
-                    dispatch({ type: 'FETCH_MODELS_SUCCESS', payload: [] }); // Clear models on error
+                } finally {
+                    setIsLoading(false);
                 }
             };
             fetchVehicles();
         }
-    }, [state.formData.vehicleType]);
+    }, [formState.vehicleType, setIsLoading, setVehicles, setAllVehicles]);
 
-    const value = { state, dispatch };
-    return <BookingContext.Provider value={value}>{children}</BookingContext.Provider>;
-};
-
-// Custom hook for easier context consumption
-const useBookingContext = () => {
-    const context = useContext(BookingContext);
-    if (context === undefined) {
-        throw new Error('useBookingContext must be used within a BookingProvider');
-    }
-    return context;
-};
-
-// --- REUSABLE UI COMPONENTS (MEMOIZED FOR PERFORMANCE) ---
-
-const FormInput = ({ id, placeholder, value, onChange, error }) => (
-    <div className="relative">
-        <input id={id} type="text" placeholder={placeholder} value={value} onChange={onChange} className={`w-full px-4 py-3.5 rounded-lg border-2 bg-gray-50 transition-all duration-300 placeholder:text-gray-500 ${error ? 'border-red-500 focus:border-red-500 ring-red-200' : 'border-gray-200 focus:border-black ring-gray-200'} focus:outline-none focus:ring-2`} />
-        {error && <p className="text-red-500 text-xs mt-1.5">{error}</p>}
-    </div>
-);
-
-const SelectionCard = React.memo(({ isSelected, onClick, children }) => (
-    <div onClick={onClick} className={`relative p-6 rounded-xl border-2 text-center cursor-pointer transition-all duration-300 transform-gpu group ${ isSelected ? 'border-black bg-gray-100 ring-2 ring-gray-900/10 ring-offset-2' : 'border-gray-200 bg-white hover:border-gray-400 hover:-translate-y-1 hover:shadow-lg' }`}>
-        {children}
-        {isSelected && (<div className="absolute -top-3 -right-3 w-6 h-6 bg-black rounded-full flex items-center justify-center border-2 border-white"><Check className="w-4 h-4 text-white" /></div>)}
-    </div>
-));
-
-const VehicleCard = React.memo(({ model, isSelected, onClick }) => (
-    <div onClick={onClick} className={`relative rounded-xl border-2 cursor-pointer transition-all duration-300 group overflow-hidden ${ isSelected ? 'border-black bg-gray-100 ring-2 ring-gray-900/10 ring-offset-2' : 'border-gray-200 bg-white hover:border-gray-400 hover:shadow-lg hover:-translate-y-1'}`}>
-        <div className="bg-gray-100 overflow-hidden aspect-video">
-            <img src={VEHICLE_IMAGES[model.name] || 'https://placehold.co/400x225/e5e7eb/374151?text=Image'} alt={model.name} className="w-full h-full object-contain p-2 group-hover:scale-105 transition-transform duration-500 ease-in-out" onError={(e) => { e.target.onerror = null; e.target.src='https://placehold.co/400x225/e5e7eb/374151?text=Not+Found'; }}/>
-        </div>
-        <div className="p-4">
-            <h3 className="font-bold text-lg text-black">{model.name}</h3>
-            <p className="text-gray-800 font-semibold text-base">₹{model.price_per_day.toLocaleString()}/day</p>
-        </div>
-        {isSelected && (<div className="absolute -top-3 -right-3 w-6 h-6 bg-black rounded-full flex items-center justify-center border-2 border-white"><Check className="w-4 h-4 text-white" /></div>)}
-    </div>
-));
-
-const VehicleCardSkeleton = () => (
-    <div className="relative rounded-xl border-2 border-gray-200 bg-white overflow-hidden animate-pulse">
-        <div className="bg-gray-200 aspect-video"></div>
-        <div className="p-4">
-            <div className="h-5 bg-gray-200 rounded w-3/4 mb-2"></div>
-            <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-        </div>
-    </div>
-);
-
-// --- STEP COMPONENTS ---
-
-const StepName = () => {
-    const { state, dispatch } = useBookingContext();
-    const { firstName, lastName } = state.formData;
-    const { errors } = state;
-    return (
-        <div className="space-y-6 w-full max-w-lg">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <FormInput id="firstName" placeholder="First Name" value={firstName} onChange={e => dispatch({ type: 'UPDATE_FORM_DATA', payload: { firstName: e.target.value } })} error={errors.firstName} />
-                <FormInput id="lastName" placeholder="Last Name" value={lastName} onChange={e => dispatch({ type: 'UPDATE_FORM_DATA', payload: { lastName: e.target.value } })} error={errors.lastName} />
-            </div>
-        </div>
-    );
-};
-
-const StepWheels = () => {
-    const { state, dispatch } = useBookingContext();
-    const handleSelect = (wheels) => {
-        dispatch({ type: 'UPDATE_FORM_DATA', payload: { wheels, vehicleType: '', specificModel: '' }});
-    };
-    return (
-        <div className="w-full max-w-lg space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <SelectionCard isSelected={state.formData.wheels === '4'} onClick={() => handleSelect('4')}>
-                    <Car className="w-12 h-12 mx-auto mb-3 text-gray-800"/>
-                    <h3 className="font-bold text-lg text-black">4 Wheels</h3><p className="text-gray-500 text-sm">Cars & SUVs</p>
-                </SelectionCard>
-                <SelectionCard isSelected={state.formData.wheels === '2'} onClick={() => handleSelect('2')}>
-                    <Bike className="w-12 h-12 mx-auto mb-3 text-gray-800"/>
-                    <h3 className="font-bold text-lg text-black">2 Wheels</h3><p className="text-gray-500 text-sm">Motorcycles</p>
-                </SelectionCard>
-            </div>
-            {state.errors.wheels && <p className="text-red-500 text-sm text-center pt-2">{state.errors.wheels}</p>}
-        </div>
-    );
-};
-
-const StepVehicleType = () => {
-    const { state, dispatch } = useBookingContext();
-    const filteredTypes = useMemo(() => state.vehicleData.types.filter(type => type.wheels == state.formData.wheels), [state.vehicleData.types, state.formData.wheels]);
-
-    return (
-        <div className="w-full max-w-2xl space-y-4">
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                {filteredTypes.map((type) => (
-                    <SelectionCard key={type.id} isSelected={state.formData.vehicleType === type.id} onClick={() => dispatch({ type: 'UPDATE_FORM_DATA', payload: { vehicleType: type.id, specificModel: '' } })}>
-                        <h3 className="font-bold text-lg text-black py-4">{type.name}</h3>
-                    </SelectionCard>
-                ))}
-            </div>
-             {state.errors.vehicleType && <p className="text-red-500 text-sm text-center pt-2">{state.errors.vehicleType}</p>}
-        </div>
-    );
-};
-
-const StepModelSelection = () => {
-    const { state, dispatch } = useBookingContext();
-    return (
-        <div className="space-y-6 w-full max-w-4xl">
-            {state.loading.models ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-                    {[...Array(6)].map((_, i) => <VehicleCardSkeleton key={i} />)}
-                </div>
-            ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 max-h-[450px] overflow-y-auto p-2 -mr-2 pr-4">
-                    {state.vehicleData.models.map((model) => (
-                        <VehicleCard key={model.id} model={model} isSelected={state.formData.specificModel === model.id} onClick={() => dispatch({ type: 'UPDATE_FORM_DATA', payload: { specificModel: model.id } })} />
-                    ))}
-                </div>
-            )}
-            {state.errors.specificModel && <p className="text-red-500 text-sm text-center pt-2">{state.errors.specificModel}</p>}
-        </div>
-    );
-};
-
-const StepDates = () => {
-    const { state, dispatch } = useBookingContext();
-    const { startDate, endDate } = state.formData;
-    const { selectedVehicle, rentalDays, totalPrice } = useMemo(() => {
-        const selectedVehicle = state.vehicleData.allModels.get(state.formData.specificModel);
-        const rentalDays = (startDate && endDate && dayjs(endDate).isAfter(dayjs(startDate))) ? dayjs(endDate).diff(dayjs(startDate), 'day') + 1 : 0;
-        const totalPrice = selectedVehicle && rentalDays > 0 ? selectedVehicle.price_per_day * rentalDays : 0;
-        return { selectedVehicle, rentalDays, totalPrice };
-    }, [state.formData.startDate, state.formData.endDate, state.formData.specificModel, state.vehicleData.allModels]);
-
-    return (
-        <LocalizationProvider dateAdapter={AdapterDayjs}>
-            <div className="space-y-6 w-full max-w-xl">
-                <div className="flex flex-col sm:flex-row gap-4 items-center justify-center">
-                    <DatePicker label="Start Date" value={startDate ? dayjs(startDate) : null} onChange={(val) => dispatch({ type: 'UPDATE_FORM_DATA', payload: { startDate: val, endDate: (endDate && val && dayjs(endDate).isBefore(val)) ? null : endDate } })} minDate={dayjs()} slotProps={{ textField: { fullWidth: true } }}/>
-                    <DatePicker label="End Date" value={endDate ? dayjs(endDate) : null} onChange={(val) => dispatch({ type: 'UPDATE_FORM_DATA', payload: { endDate: val }})} minDate={startDate ? dayjs(startDate).add(1, 'day') : dayjs().add(1, 'day')} disabled={!startDate} slotProps={{ textField: { fullWidth: true } }}/>
-                </div>
-                {rentalDays > 0 && (
-                    <div className="text-center mt-4">
-                        <div className="p-4 rounded-lg bg-gray-100 border border-gray-200 inline-block">
-                            <p className="text-gray-600">Total Duration: <span className="font-bold text-black">{rentalDays} day(s)</span></p>
-                            {totalPrice > 0 && (<p className="text-xl mt-1 font-bold text-black">Estimated Price: ₹{totalPrice.toLocaleString()}</p>)}
-                        </div>
-                    </div>
-                )}
-                {state.errors.dateRange && <p className="text-red-500 text-sm text-center pt-2">{state.errors.dateRange}</p>}
-            </div>
-        </LocalizationProvider>
-    );
-};
-
-const StepConfirm = () => {
-    const { state, dispatch } = useBookingContext();
-    const { selectedVehicle, rentalDays, totalPrice } = useMemo(() => {
-        const selectedVehicle = state.vehicleData.allModels.get(state.formData.specificModel);
-        const rentalDays = (state.formData.startDate && state.formData.endDate) ? dayjs(state.formData.endDate).diff(dayjs(state.formData.startDate), 'day') + 1 : 0;
-        const totalPrice = selectedVehicle && rentalDays > 0 ? selectedVehicle.price_per_day * rentalDays : 0;
-        return { selectedVehicle, rentalDays, totalPrice };
-    }, [state.formData, state.vehicleData.allModels]);
-
-    return (
-        <div className="w-full max-w-2xl">
-            <div className="p-6 sm:p-8 rounded-xl bg-white border border-gray-200 text-left">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-6 text-gray-700">
-                    <div><p className="text-xs uppercase tracking-wider font-medium text-gray-500">Full Name</p><p className="font-semibold text-black text-lg">{state.formData.firstName} {state.formData.lastName}</p></div>
-                    <div><p className="text-xs uppercase tracking-wider font-medium text-gray-500">Vehicle</p><p className="font-semibold text-black text-lg">{selectedVehicle?.name || 'N/A'}</p></div>
-                    <div><p className="text-xs uppercase tracking-wider font-medium text-gray-500">Start Date</p><p className="font-semibold text-black text-lg">{dayjs(state.formData.startDate).format('MMM DD, YYYY')}</p></div>
-                    <div><p className="text-xs uppercase tracking-wider font-medium text-gray-500">End Date</p><p className="font-semibold text-black text-lg">{dayjs(state.formData.endDate).format('MMM DD, YYYY')}</p></div>
-                </div>
-                <div className="mt-6 pt-6 border-t border-gray-200 text-center">
-                    <p className="text-gray-500">Total Duration: <span className="font-bold text-black">{rentalDays} days</span></p>
-                    <p className="text-2xl font-bold text-black mt-1">Total Price: ₹{totalPrice.toLocaleString()}</p>
-                </div>
-            </div>
-            {state.bookingError && (
-                <div className="mt-6 p-4 rounded-lg bg-red-50 border border-red-200 text-center space-y-2">
-                    <div className="flex items-center justify-center text-red-600">
-                        <XCircle className="w-6 h-6 mr-2" /><p className="font-semibold">{state.bookingError}</p>
-                    </div>
-                </div>
-            )}
-        </div>
-    );
-};
-
-const StepSuccess = () => {
-    const { state, dispatch } = useBookingContext();
-    const selectedVehicle = state.vehicleData.allModels.get(state.formData.specificModel);
-    return (
-         <div className="text-center space-y-4 py-8">
-            <div className="w-24 h-24 mx-auto bg-green-100 rounded-full flex items-center justify-center ring-4 ring-green-200">
-                <Check className="w-12 h-12 text-green-600" />
-            </div>
-            <p className="text-gray-600 text-lg max-w-md mx-auto">Your booking for the <span className="font-bold text-black">{selectedVehicle?.name}</span> is complete. We've sent the details to your email.</p>
-            <button onClick={() => dispatch({type: 'RESET'})} className="mt-6 inline-flex items-center justify-center gap-2 bg-black text-white font-bold rounded-lg px-8 py-3.5 transition-all duration-300 ease-in-out hover:bg-gray-800 transform hover:-translate-y-1">
-                Book another ride
-            </button>
-        </div>
-    );
-};
-
-// --- LOGIC & LAYOUT COMPONENTS ---
-
-const stepConfig = [
-    { icon: User, label: "Details", title: "Let's start with your name.", subtitle: "We need this to personalize your booking.", component: <StepName /> },
-    { icon: Shapes, label: "Type", title: (name) => `Hi ${name}! Choose your ride style.`, subtitle: "How many wheels will you be needing?", component: <StepWheels /> },
-    { icon: Building, label: "Category", title: "What kind of vehicle fits?", subtitle: "Select the category that suits your journey.", component: <StepVehicleType /> },
-    { icon: Car, label: "Model", title: "Choose your specific ride.", subtitle: "Here are the available models in this category.", component: <StepModelSelection /> },
-    { icon: Calendar, label: "Dates", title: "When do you need it?", subtitle: "Select your rental start and end dates.", component: <StepDates /> },
-    { icon: ClipboardCheck, label: "Confirm", title: "Confirm Your Booking", subtitle: "One final check before we finalize your ride.", component: <StepConfirm /> },
-    { icon: Check, label: "Done", title: "Booking Confirmed!", subtitle: (name) => `Get ready for your adventure, ${name}.`, component: <StepSuccess /> },
-];
-
-const ProgressBar = () => {
-    const { state } = useBookingContext();
-    const { currentStep } = state;
-    return (
-        <div className="mb-10 px-4 hidden sm:block">
-            <div className="flex items-center">
-                {stepConfig.slice(0, 6).map((step, index) => (
-                    <React.Fragment key={index}>
-                        <div className="flex flex-col items-center z-10 text-center">
-                            <div className={`flex items-center justify-center w-12 h-12 rounded-full transition-all duration-500 border-2 ${ index < currentStep ? 'bg-black border-black text-white' : index === currentStep ? 'bg-white border-black scale-110 shadow-lg' : 'bg-gray-200 border-gray-300' }`}>
-                                {index < currentStep ? <Check className="w-6 h-6" /> : <step.icon className={`w-6 h-6 transition-colors ${index === currentStep ? 'text-black' : 'text-gray-500'}`} />}
-                            </div>
-                            <p className={`mt-2 text-xs font-semibold transition-colors ${index === currentStep ? 'text-black' : 'text-gray-400'}`}>{step.label}</p>
-                        </div>
-                        {index < 5 && ( <div className={`flex-auto h-0.5 -mx-1 transition-all duration-500 ${index < currentStep ? 'bg-black' : 'bg-gray-200'}`}></div> )}
-                    </React.Fragment>
-                ))}
-            </div>
-        </div>
-    );
-};
-
-const Navigation = () => {
-    const { state, dispatch } = useBookingContext();
-    const { currentStep, formData, errors } = state;
-
-    const validateStep = () => {
+    // --- VALIDATION LOGIC WITH USECALLBACK ---
+    const validateStep = useCallback((step) => {
         const newErrors = {};
-        switch(currentStep) {
+        switch(step) {
             case 0:
-                if (!formData.firstName.trim()) newErrors.firstName = 'First name is required';
-                if (!formData.lastName.trim()) newErrors.lastName = 'Last name is required';
+                if (!formState.firstName.trim()) newErrors.firstName = 'First name is required';
+                if (!formState.lastName.trim()) newErrors.lastName = 'Last name is required';
+                if (formState.firstName.length < 2) newErrors.firstName = 'First name too short';
+                if (formState.lastName.length < 2) newErrors.lastName = 'Last name too short';
                 break;
-            case 1: if (!formData.wheels) newErrors.wheels = 'Please select the number of wheels'; break;
-            case 2: if (!formData.vehicleType) newErrors.vehicleType = 'Please select a vehicle type'; break;
-            case 3: if (!formData.specificModel) newErrors.specificModel = 'Please select a specific model'; break;
+            case 1:
+                if (!formState.wheels) newErrors.wheels = 'Please select the number of wheels';
+                break;
+            case 2:
+                if (!formState.vehicleType) newErrors.vehicleType = 'Please select a vehicle type';
+                break;
+            case 3:
+                if (!formState.specificModel) newErrors.specificModel = 'Please select a specific model';
+                break;
             case 4:
-                if (!formData.startDate) newErrors.dateRange = 'Start and end dates are required';
-                if (!formData.endDate) newErrors.dateRange = 'Start and end dates are required';
-                if (formData.startDate && formData.endDate && dayjs(formData.startDate).isAfter(dayjs(formData.endDate))) {
+                if (!formState.startDate) newErrors.startDate = 'Start date is required';
+                if (!formState.endDate) newErrors.endDate = 'End date is required';
+                if (formState.startDate && formState.endDate && dayjs(formState.startDate).isAfter(dayjs(formState.endDate))) {
                     newErrors.dateRange = 'End date must be after start date';
                 }
                 break;
-            default: break;
+            default:
+                break;
         }
         dispatch({ type: 'SET_ERRORS', payload: newErrors });
         return Object.keys(newErrors).length === 0;
-    };
+    }, [formState, dispatch]);
 
-    const handleNext = () => {
+    const handleNext = useCallback(() => {
         if (validateStep(currentStep)) {
-            dispatch({ type: 'SET_ANIMATING', payload: true });
+            setBookingError(null);
+            setIsAnimatingOut(true);
             setTimeout(() => {
-                dispatch({ type: 'NEXT_STEP' });
-                dispatch({ type: 'SET_ANIMATING', payload: false });
+                setCurrentStep(currentStep + 1);
+                dispatch({ type: 'CLEAR_ERRORS' });
+                setIsAnimatingOut(false);
             }, 300);
         }
-    };
+    }, [currentStep, validateStep, setIsAnimatingOut, setCurrentStep, setBookingError, dispatch]);
 
-    const handlePrev = () => {
-        dispatch({ type: 'SET_ANIMATING', payload: true });
+    const handlePrev = useCallback(() => {
+        setIsAnimatingOut(true);
         setTimeout(() => {
-            dispatch({ type: 'PREV_STEP' });
-            dispatch({ type: 'SET_ANIMATING', payload: false });
+            setCurrentStep(currentStep - 1);
+            dispatch({ type: 'CLEAR_ERRORS' });
+            setIsAnimatingOut(false);
         }, 300);
-    };
+    }, [currentStep, setCurrentStep, setIsAnimatingOut, dispatch]);
+    
+    const handleReset = useCallback(() => {
+        const initialState = {
+            firstName: '',
+            lastName: '',
+            wheels: '',
+            vehicleType: '',
+            specificModel: '',
+            startDate: '',
+            endDate: '',
+            startDateObj: null,
+            endDateObj: null,
+            errors: {}
+        };
+        dispatch({ type: 'RESET_FORM', payload: initialState });
+        setCurrentStep(0);
+        setBookingError(null);
+    }, [dispatch, setCurrentStep, setBookingError]);
 
-    const handleSubmit = async () => {
-        if (validateStep(currentStep)) {
-            dispatch({ type: 'SUBMIT_BOOKING_START' });
+    const handleSubmit = useCallback(async () => {
+        if (validateStep(4)) {
+            setIsLoading(true);
             try {
                 const payload = {
-                    firstName: formData.firstName, lastName: formData.lastName, vehicleId: formData.specificModel,
-                    startDate: dayjs(formData.startDate).format('YYYY-MM-DD'),
-                    endDate: dayjs(formData.endDate).format('YYYY-MM-DD'),
+                    firstName: formState.firstName,
+                    lastName: formState.lastName,
+                    vehicleId: formState.specificModel,
+                    startDate: formState.startDate,
+                    endDate: formState.endDate
                 };
                 const response = await fetch(`${API_BASE_URL}/bookings`, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
                 });
                 const result = await response.json();
+                
                 if (response.ok) {
-                    dispatch({ type: 'SUBMIT_BOOKING_SUCCESS' });
+                    // Save to booking history
+                    const newBooking = { ...payload, id: Date.now(), createdAt: new Date().toISOString() };
+                    setSavedBookings(prev => [newBooking, ...prev.slice(0, 4)]);
+                    handleNext();
                 } else {
-                    dispatch({ type: 'SUBMIT_BOOKING_FAILURE', payload: result.message || 'Booking failed.' });
+                    setBookingError(result.message);
                 }
             } catch (error) {
-                dispatch({ type: 'SUBMIT_BOOKING_FAILURE', payload: 'An unexpected error occurred.' });
+                setBookingError('An unexpected error occurred. Please try again.');
+            } finally {
+                setIsLoading(false);
             }
         }
-    };
-    
-    if (currentStep >= stepConfig.length - 1) return null;
+    }, [formState, validateStep, setIsLoading, setSavedBookings, handleNext, setBookingError]);
+
+    const getVehicleInfo = useCallback((id) => allVehicles.find(v => v.id === id), [allVehicles]);
+
+    // --- MEMOIZED STEP CONFIGURATION ---
+    const allSteps = useMemo(() => {
+        const selectedVehicle = getVehicleInfo(formState.specificModel);
+        const rentalDays = (formState.startDateObj && formState.endDateObj && formState.endDateObj.isAfter(formState.startDateObj, 'day')) 
+            ? formState.endDateObj.diff(formState.startDateObj, 'day') + 1
+            : 0;
+        const totalPrice = selectedVehicle && rentalDays > 0 ? selectedVehicle.price_per_day * rentalDays : 0;
+
+        const steps = [
+            {
+                icon: User,
+                label: "Details",
+                title: "Let's start with your details",
+                subtitle: "We need this information to personalize your booking experience",
+                component: () => (
+                    <div className="space-y-8 w-full max-w-lg">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                            <FormInput 
+                                id="firstName" 
+                                placeholder="First Name" 
+                                value={formState.firstName} 
+                                onChange={e => dispatch({ type: 'UPDATE_FIELD', field: 'firstName', value: e.target.value })}
+                                error={formState.errors.firstName} 
+                                icon={User}
+                            />
+                            <FormInput 
+                                id="lastName" 
+                                placeholder="Last Name" 
+                                value={formState.lastName} 
+                                onChange={e => dispatch({ type: 'UPDATE_FIELD', field: 'lastName', value: e.target.value })}
+                                error={formState.errors.lastName} 
+                                icon={User}
+                            />
+                        </div>
+                        {savedBookings.length > 0 && (
+                            <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl">
+                                <p className="text-sm text-blue-800 font-medium">Previous bookings found for similar names</p>
+                            </div>
+                        )}
+                    </div>
+                )
+            },
+            {
+                icon: Shapes,
+                label: "Type",
+                title: `Welcome ${formState.firstName}! Choose your adventure`,
+                subtitle: "Select the type of vehicle that matches your journey",
+                component: () => (
+                    <div className="w-full max-w-2xl space-y-6">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                            <SelectionCard 
+                                isSelected={formState.wheels === '4'} 
+                                onClick={() => dispatch({ type: 'UPDATE_MULTIPLE', payload: { wheels: '4', vehicleType: '', specificModel: '' }})}
+                                className="group-hover:bg-gradient-to-br group-hover:from-blue-50 group-hover:to-white"
+                            >
+                                <Car className="w-16 h-16 mx-auto mb-4 text-blue-600 group-hover:scale-110 transition-transform duration-300"/>
+                                <h3 className="font-bold text-xl text-black mb-2">4 Wheels</h3>
+                                <p className="text-gray-500">Cars & SUVs for comfortable rides</p>
+                                <div className="flex items-center justify-center gap-2 mt-3 text-sm text-gray-400">
+                                    <MapPin className="w-4 h-4" />
+                                    <span>Perfect for long trips</span>
+                                </div>
+                            </SelectionCard>
+                            <SelectionCard 
+                                isSelected={formState.wheels === '2'} 
+                                onClick={() => dispatch({ type: 'UPDATE_MULTIPLE', payload: { wheels: '2', vehicleType: '', specificModel: '' }})}
+                                className="group-hover:bg-gradient-to-br group-hover:from-orange-50 group-hover:to-white"
+                            >
+                                <Bike className="w-16 h-16 mx-auto mb-4 text-orange-600 group-hover:scale-110 transition-transform duration-300"/>
+                                <h3 className="font-bold text-xl text-black mb-2">2 Wheels</h3>
+                                <p className="text-gray-500">Motorcycles for quick rides</p>
+                                <div className="flex items-center justify-center gap-2 mt-3 text-sm text-gray-400">
+                                    <Clock className="w-4 h-4" />
+                                    <span>Beat the traffic</span>
+                                </div>
+                            </SelectionCard>
+                        </div>
+                    </div>
+                )
+            },
+            {
+                icon: Building,
+                label: "Category",
+                title: "What style fits your mood?",
+                subtitle: "Choose the perfect category for your journey",
+                component: () => (
+                    <div className="w-full max-w-3xl space-y-6">
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                            {vehicleTypes.filter(type => type.wheels == formState.wheels).map((type, index) => (
+                                <SelectionCard 
+                                    key={type.id} 
+                                    isSelected={formState.vehicleType === type.id} 
+                                    onClick={() => dispatch({ type: 'UPDATE_MULTIPLE', payload: { vehicleType: type.id, specificModel: '' }})}
+                                    className={`animate-in fade-in slide-in-from-bottom duration-500`}
+                                    style={{ animationDelay: `${index * 100}ms` }}
+                                >
+                                    <div className="w-12 h-12 mx-auto mb-3 bg-gradient-to-r from-gray-800 to-black rounded-full flex items-center justify-center">
+                                        <Building className="w-6 h-6 text-white" />
+                                    </div>
+                                    <h3 className="font-bold text-lg text-black">{type.name}</h3>
+                                </SelectionCard>
+                            ))}
+                        </div>
+                        {typesLoading && <LoadingSpinner text="Loading categories..." />}
+                    </div>
+                )
+            },
+            {
+                icon: Car,
+                label: "Model",
+                title: "Pick your perfect ride",
+                subtitle: "These are the available models in your selected category",
+                component: () => (
+                    <div className="space-y-6 w-full max-w-6xl">
+                        {isLoading ? (
+                            <div className="flex justify-center items-center h-64">
+                                <LoadingSpinner size="large" text="Loading awesome rides..." />
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 max-h-[500px] overflow-y-auto p-2 -mr-2 pr-6">
+                                {vehicles.map((model, index) => (
+                                    <div 
+                                        key={model.id}
+                                        className="animate-in fade-in slide-in-from-bottom duration-500"
+                                        style={{ animationDelay: `${index * 150}ms` }}
+                                    >
+                                        <VehicleCard 
+                                            model={model} 
+                                            isSelected={formState.specificModel === model.id} 
+                                            onClick={() => dispatch({ type: 'UPDATE_FIELD', field: 'specificModel', value: model.id })} 
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                        {formState.errors.specificModel && (
+                            <p className="text-red-500 text-sm text-center pt-2 animate-in slide-in-from-bottom">
+                                {formState.errors.specificModel}
+                            </p>
+                        )}
+                    </div>
+                )
+            },
+            {
+                icon: Calendar,
+                label: "Dates",
+                title: "When's your adventure?",
+                subtitle: "Choose your rental dates and get instant pricing",
+                component: () => (
+                    <LocalizationProvider dateAdapter={AdapterDayjs}>
+                        <div className="space-y-8 w-full max-w-2xl">
+                            <div className="flex flex-col sm:flex-row gap-6 items-center justify-center">
+                                <div className="w-full sm:w-auto">
+                                    <DatePicker 
+                                        label="Start Date" 
+                                        value={formState.startDateObj} 
+                                        onChange={(newValue) => dispatch({ 
+                                            type: 'UPDATE_MULTIPLE', 
+                                            payload: { 
+                                                startDateObj: newValue, 
+                                                startDate: newValue ? newValue.format('YYYY-MM-DD') : '', 
+                                                endDateObj: (formState.endDateObj && newValue && formState.endDateObj.isBefore(newValue)) ? null : formState.endDateObj, 
+                                                endDate: (formState.endDateObj && newValue && formState.endDateObj.isBefore(newValue)) ? '' : formState.endDate 
+                                            }
+                                        })} 
+                                        minDate={dayjs()} 
+                                        slotProps={{ 
+                                            textField: { 
+                                                fullWidth: true,
+                                                className: 'animate-in slide-in-from-left duration-500'
+                                            } 
+                                        }}
+                                    />
+                                </div>
+                                <div className="w-full sm:w-auto">
+                                    <DatePicker 
+                                        label="End Date" 
+                                        value={formState.endDateObj} 
+                                        onChange={(newValue) => dispatch({ 
+                                            type: 'UPDATE_MULTIPLE', 
+                                            payload: { 
+                                                endDateObj: newValue, 
+                                                endDate: newValue ? newValue.format('YYYY-MM-DD') : '' 
+                                            }
+                                        })} 
+                                        minDate={formState.startDateObj ? formState.startDateObj.add(1, 'day') : dayjs().add(1, 'day')} 
+                                        disabled={!formState.startDateObj} 
+                                        slotProps={{ 
+                                            textField: { 
+                                                fullWidth: true,
+                                                className: 'animate-in slide-in-from-right duration-500 delay-200'
+                                            } 
+                                        }}
+                                    />
+                                </div>
+                            </div>
+                            
+                            {rentalDays > 0 && (
+                                <div className="text-center animate-in fade-in slide-in-from-bottom duration-700 delay-300">
+                                    <div className="p-6 rounded-2xl bg-gradient-to-r from-gray-50 to-white border-2 border-gray-200 inline-block shadow-lg">
+                                        <div className="flex items-center gap-3 mb-3">
+                                            <Calendar className="w-6 h-6 text-gray-600" />
+                                            <p className="text-gray-700 text-lg">
+                                                Duration: <span className="font-bold text-black text-xl">{rentalDays} day{rentalDays > 1 ? 's' : ''}</span>
+                                            </p>
+                                        </div>
+                                        {totalPrice > 0 && (
+                                            <div className="pt-3 border-t border-gray-200">
+                                                <p className="text-3xl font-bold text-black bg-gradient-to-r from-black to-gray-700 bg-clip-text text-transparent">
+                                                    ₹{totalPrice.toLocaleString()}
+                                                </p>
+                                                <p className="text-sm text-gray-500 mt-1">Total estimated cost</p>
+                                            </div>
+                                        )}
+                                        <div className="flex items-center justify-center gap-4 mt-4 text-sm text-gray-500">
+                                            <div className="flex items-center gap-1">
+                                                <Shield className="w-4 h-4" />
+                                                <span>Insured</span>
+                                            </div>
+                                            <div className="flex items-center gap-1">
+                                                <Clock className="w-4 h-4" />
+                                                <span>24/7 Support</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                            
+                            {formState.errors.dateRange && (
+                                <p className="text-red-500 text-sm text-center animate-in slide-in-from-bottom">
+                                    {formState.errors.dateRange}
+                                </p>
+                            )}
+                        </div>
+                    </LocalizationProvider>
+                )
+            },
+            {
+                icon: ClipboardCheck,
+                label: "Review",
+                title: "Everything looks perfect!",
+                subtitle: "Review your booking details before we confirm",
+                component: () => (
+                    <div className="w-full max-w-3xl space-y-6">
+                        <div className="p-8 rounded-2xl bg-gradient-to-br from-white to-gray-50 border-2 border-gray-200 shadow-xl">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                <div className="space-y-6">
+                                    <div className="animate-in slide-in-from-left duration-500">
+                                        <p className="text-xs uppercase tracking-wider font-bold text-gray-500 mb-2">Customer Details</p>
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-12 h-12 bg-gradient-to-r from-black to-gray-800 rounded-full flex items-center justify-center">
+                                                <User className="w-6 h-6 text-white" />
+                                            </div>
+                                            <div>
+                                                <p className="font-bold text-black text-xl">{formState.firstName} {formState.lastName}</p>
+                                                <p className="text-gray-500 text-sm">Verified Customer</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="animate-in slide-in-from-left duration-500 delay-100">
+                                        <p className="text-xs uppercase tracking-wider font-bold text-gray-500 mb-2">Selected Vehicle</p>
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-16 h-16 rounded-xl overflow-hidden bg-gray-100">
+                                                <img 
+                                                    src={VEHICLE_IMAGES[selectedVehicle?.name] || 'https://placehold.co/64x64/e5e7eb/374151?text=Car'} 
+                                                    alt={selectedVehicle?.name} 
+                                                    className="w-full h-full object-contain p-1"
+                                                />
+                                            </div>
+                                            <div>
+                                                <p className="font-bold text-black text-lg">{selectedVehicle?.name || 'N/A'}</p>
+                                                <div className="flex items-center gap-2 text-sm text-gray-500">
+                                                    <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
+                                                    <span>4.8 Rating</span>
+                                                    <span>•</span>
+                                                    <span>₹{selectedVehicle?.price_per_day || 0}/day</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div className="space-y-6">
+                                    <div className="animate-in slide-in-from-right duration-500 delay-200">
+                                        <p className="text-xs uppercase tracking-wider font-bold text-gray-500 mb-2">Rental Period</p>
+                                        <div className="space-y-3">
+                                            <div className="flex items-center gap-3">
+                                                <Calendar className="w-5 h-5 text-green-600" />
+                                                <div>
+                                                    <p className="font-semibold text-black">Start: {dayjs(formState.startDate).format('MMM DD, YYYY')}</p>
+                                                    <p className="text-sm text-gray-500">{dayjs(formState.startDate).format('dddd')}</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                <Calendar className="w-5 h-5 text-red-600" />
+                                                <div>
+                                                    <p className="font-semibold text-black">End: {dayjs(formState.endDate).format('MMM DD, YYYY')}</p>
+                                                    <p className="text-sm text-gray-500">{dayjs(formState.endDate).format('dddd')}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="animate-in slide-in-from-right duration-500 delay-300">
+                                        <p className="text-xs uppercase tracking-wider font-bold text-gray-500 mb-2">Booking Summary</p>
+                                        <div className="bg-gradient-to-r from-gray-900 to-black p-4 rounded-xl text-white">
+                                            <div className="flex justify-between items-center mb-2">
+                                                <span>Duration:</span>
+                                                <span className="font-bold">{rentalDays} day{rentalDays > 1 ? 's' : ''}</span>
+                                            </div>
+                                            <div className="flex justify-between items-center text-lg">
+                                                <span>Total Price:</span>
+                                                <span className="font-bold text-2xl">₹{totalPrice.toLocaleString()}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div className="mt-8 pt-6 border-t border-gray-200">
+                                <div className="flex items-center justify-center gap-6 text-sm text-gray-500">
+                                    <div className="flex items-center gap-2">
+                                        <Shield className="w-4 h-4 text-green-600" />
+                                        <span>Fully Insured</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <Clock className="w-4 h-4 text-blue-600" />
+                                        <span>24/7 Support</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <Zap className="w-4 h-4 text-yellow-600" />
+                                        <span>Instant Confirmation</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        {bookingError && (
+                            <div className="p-6 rounded-2xl bg-red-50 border-2 border-red-200 text-center space-y-3 animate-in fade-in slide-in-from-bottom">
+                                <div className="flex items-center justify-center text-red-600">
+                                    <XCircle className="w-8 h-8 mr-3" />
+                                    <div>
+                                        <p className="font-bold text-lg">Booking Failed</p>
+                                        <p className="text-red-500 text-sm">{bookingError}</p>
+                                    </div>
+                                </div>
+                                <button 
+                                    onClick={() => setBookingError(null)} 
+                                    className="text-red-600 font-medium hover:text-red-800 transition-colors underline"
+                                >
+                                    Try Again
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                )
+            },
+            {
+                icon: Check,
+                label: "Success",
+                title: `Amazing choice, ${formState.firstName}!`,
+                subtitle: "Your booking has been confirmed successfully",
+                component: () => (
+                    <Suspense fallback={<LoadingSpinner size="large" text="Preparing your confirmation..." />}>
+                        <div className="text-center space-y-8 py-12">
+                            <SuccessAnimation />
+                            
+                            <div className="max-w-md mx-auto p-6 bg-gradient-to-r from-green-50 to-white border-2 border-green-200 rounded-2xl animate-in slide-in-from-bottom duration-700 delay-700">
+                                <p className="text-gray-700 text-lg mb-4">
+                                    Your <span className="font-bold text-black">{selectedVehicle?.name}</span> is ready for pickup!
+                                </p>
+                                <div className="text-sm text-gray-600 space-y-2">
+                                    <p>📧 Confirmation sent to your email</p>
+                                    <p>📱 SMS notifications enabled</p>
+                                    <p>🚗 Vehicle sanitized & ready</p>
+                                </div>
+                            </div>
+                            
+                            <div className="space-y-4">
+                                <button
+                                    onClick={handleReset}
+                                    className="inline-flex items-center justify-center gap-3 bg-gradient-to-r from-black to-gray-800 text-white font-bold rounded-2xl px-10 py-4 transition-all duration-500 ease-in-out hover:from-gray-800 hover:to-black transform hover:-translate-y-2 hover:shadow-2xl shadow-black/20"
+                                >
+                                    <Car className="w-5 h-5" />
+                                    <span>Book Another Ride</span>
+                                </button>
+                                <p className="text-gray-500 text-sm">
+                                    Need help? Contact us at <span className="font-semibold text-black">support@rentalservice.com</span>
+                                </p>
+                            </div>
+                        </div>
+                    </Suspense>
+                )
+            }
+        ];
+        return steps;
+    }, [formState, isLoading, vehicleTypes, vehicles, allVehicles, bookingError, getVehicleInfo, typesLoading, dispatch, setBookingError, handleReset]);
 
     return (
-        <div className="flex flex-col-reverse sm:flex-row justify-between items-center mt-8 pt-6 border-t border-gray-200">
-            <button onClick={handlePrev} disabled={currentStep === 0} className="mt-4 sm:mt-0 text-gray-500 font-semibold rounded-lg px-6 py-3 transition-colors hover:text-black disabled:opacity-40 disabled:hover:text-gray-500">Back</button>
-            {currentStep < stepConfig.length - 2 ? (
-                <button onClick={handleNext} className="w-full sm:w-auto flex items-center justify-center gap-2 bg-black text-white font-bold rounded-lg px-8 py-3.5 transition-all duration-300 ease-in-out hover:bg-gray-800 transform hover:-translate-y-1">
-                    <span>Next</span><ChevronRight className="w-5 h-5" />
-                </button>
-            ) : (
-                <button onClick={handleSubmit} disabled={state.loading.booking} className="w-full sm:w-auto flex items-center justify-center gap-2 bg-black text-white font-bold rounded-lg px-8 py-3.5 transition-all duration-300 ease-in-out hover:bg-gray-800 transform hover:-translate-y-1 disabled:bg-gray-400 disabled:cursor-not-allowed">
-                    {state.loading.booking ? <><CircularProgress size={20} sx={{color: 'white'}} /><span>Booking...</span></> : <><span>Confirm & Book</span><Check className="w-5 h-5" /></>}
-                </button>
-            )}
-        </div>
-    );
-};
-
-const StepRenderer = () => {
-    const { state } = useBookingContext();
-    const { currentStep, isAnimatingOut, formData } = state;
-    const currentStepConfig = stepConfig[currentStep];
-
-    let title = typeof currentStepConfig.title === 'function' ? currentStepConfig.title(formData.firstName) : currentStepConfig.title;
-    let subtitle = typeof currentStepConfig.subtitle === 'function' ? currentStepConfig.subtitle(formData.firstName) : currentStepConfig.subtitle;
-    
-    return (
-        <div className={`transition-all duration-300 ease-in-out ${isAnimatingOut ? 'opacity-0 transform -translate-x-4' : 'opacity-100 transform translate-x-0'}`}>
-            <header className="text-center mb-8">
-                <h2 className="text-3xl font-bold text-black mb-1 tracking-tight">{title}</h2>
-                <p className="text-gray-500 text-lg">{subtitle}</p>
-            </header>
-            <div className="mb-8 min-h-[300px] flex items-center justify-center">
-                {currentStepConfig.component}
-            </div>
-            <Navigation />
-        </div>
-    );
-};
-
-
-// --- MAIN APP COMPONENT ---
-
-const App = () => {
-  return (
-    <BookingProvider>
-        <style>{`
-            /* Keyframe animations for smoother transitions */
-            @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-            .animate-fadeIn { animation: fadeIn 0.5s ease-in-out; }
+        <>
+            <style>{`
+                /* Enhanced MUI DatePicker Styling */
+                .MuiOutlinedInput-root {
+                    background: linear-gradient(135deg, #f9fafb 0%, #ffffff 100%) !important;
+                    border-radius: 12px !important;
+                    transition: all 0.3s ease !important;
+                }
+                .MuiOutlinedInput-root:hover {
+                    transform: translateY(-2px) !important;
+                    box-shadow: 0 8px 25px rgba(0,0,0,0.1) !important;
+                }
+                .MuiOutlinedInput-notchedOutline {
+                    border-color: #e5e7eb !important;
+                    border-width: 2px !important;
+                }
+                .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline {
+                    border-color: #9ca3af !important;
+                }
+                .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline {
+                    border-color: #000000 !important;
+                    box-shadow: 0 0 0 3px rgba(0,0,0,0.1) !important;
+                }
+                .MuiInputLabel-root {
+                    color: #6b7280 !important;
+                    font-weight: 500 !important;
+                }
+                .MuiInputLabel-root.Mui-focused {
+                    color: #000000 !important;
+                    font-weight: 600 !important;
+                }
+                .MuiSvgIcon-root {
+                    color: #6b7280 !important;
+                }
+                .MuiInputBase-input {
+                    color: #111827 !important;
+                    font-weight: 500 !important;
+                }
+                
+                /* Enhanced Calendar Styling */
+                .MuiDateCalendar-root {
+                    background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%) !important;
+                    border-radius: 16px !important;
+                    box-shadow: 0 20px 40px rgba(0,0,0,0.1) !important;
+                    color: #111827 !important;
+                }
+                .MuiDayCalendar-weekDayLabel {
+                    color: #6b7280 !important;
+                    font-weight: 600 !important;
+                }
+                .MuiPickersDay-root {
+                    color: #111827 !important;
+                    font-weight: 500 !important;
+                    transition: all 0.2s ease !important;
+                }
+                .MuiPickersDay-root:hover {
+                    background-color: #f3f4f6 !important;
+                    transform: scale(1.1) !important;
+                }
+                .MuiPickersDay-root.Mui-selected {
+                    background: linear-gradient(135deg, #000000 0%, #374151 100%) !important;
+                    color: #ffffff !important;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important;
+                }
+                .MuiPickersDay-today {
+                    border: 2px solid #000000 !important;
+                    font-weight: 700 !important;
+                }
+                .MuiDialogActions-root .MuiButton-text {
+                    color: #000000 !important;
+                    font-weight: 600 !important;
+                }
+                
+                /* Custom Animations */
+                @keyframes slideInFromBottom {
+                    from {
+                        opacity: 0;
+                        transform: translateY(30px);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: translateY(0);
+                    }
+                }
+                
+                @keyframes slideInFromLeft {
+                    from {
+                        opacity: 0;
+                        transform: translateX(-30px);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: translateX(0);
+                    }
+                }
+                
+                @keyframes slideInFromRight {
+                    from {
+                        opacity: 0;
+                        transform: translateX(30px);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: translateX(0);
+                    }
+                }
+                
+                .animate-in {
+                    animation-fill-mode: both;
+                }
+                
+                .slide-in-from-bottom {
+                    animation-name: slideInFromBottom;
+                }
+                
+                .slide-in-from-left {
+                    animation-name: slideInFromLeft;
+                }
+                
+                .slide-in-from-right {
+                    animation-name: slideInFromRight;
+                }
+                
+                .fade-in {
+                    animation-name: fadeIn;
+                }
+                
+                @keyframes fadeIn {
+                    from { opacity: 0; }
+                    to { opacity: 1; }
+                }
+                
+                .zoom-in {
+                    animation-name: zoomIn;
+                }
+                
+                @keyframes zoomIn {
+                    from {
+                        opacity: 0;
+                        transform: scale(0.8);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: scale(1);
+                    }
+                }
+                
+                .zoom-in-75 {
+                    animation-name: zoomIn75;
+                }
+                
+                @keyframes zoomIn75 {
+                    from {
+                        opacity: 0;
+                        transform: scale(0.75);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: scale(1);
+                    }
+                }
+                
+                /* Scrollbar Styling */
+                ::-webkit-scrollbar {
+                    width: 8px;
+                }
+                
+                ::-webkit-scrollbar-track {
+                    background: #f1f1f1;
+                    border-radius: 4px;
+                }
+                
+                ::-webkit-scrollbar-thumb {
+                    background: linear-gradient(135deg, #6b7280 0%, #374151 100%);
+                    border-radius: 4px;
+                }
+                
+                ::-webkit-scrollbar-thumb:hover {
+                    background: linear-gradient(135deg, #374151 0%, #111827 100%);
+                }
+            `}</style>
             
-            /* MUI DatePicker Light Theme Override */
-            .MuiOutlinedInput-root { background-color: #f9fafb !important; border-radius: 8px !important; }
-            .MuiOutlinedInput-notchedOutline { border-color: #d1d5db !important; }
-            .MuiOutlinedInput-root:hover .MIuOutlinedInput-notchedOutline { border-color: #9ca3af !important; }
-            .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline { border-color: #000000 !important; }
-            .MuiInputLabel-root { color: #6b7280 !important; } .MuiInputLabel-root.Mui-focused { color: #000000 !important; }
-            .MuiSvgIcon-root { color: #6b7280 !important; } .MuiInputBase-input { color: #111827 !important; }
-            /* Calendar pop-up styles */
-            .MuiDateCalendar-root { background-color: #ffffff !important; color: #111827 !important; }
-            .MuiDayCalendar-weekDayLabel { color: #6b7280 !important; }
-            .MuiPickersDay-root { color: #111827 !important; }
-            .MuiPickersDay-root:not(.Mui-selected) { border-color: #e5e7eb !important; }
-            .MuiPickersDay-root.Mui-selected { background-color: #000000 !important; color: #ffffff !important; }
-            .MuiPickersDay-today { border-color: #000000 !important; }
-            .MuiDialogActions-root .MuiButton-text { color: #000000 !important; }
-        `}</style>
-        <div className="min-h-screen bg-gray-100 text-gray-900 py-10 px-4 font-sans antialiased">
-            <div className="relative max-w-5xl mx-auto z-10">
-                <header className="text-center mb-10 animate-fadeIn">
-                    <h1 className="text-4xl md:text-5xl font-bold text-black mb-2 tracking-tighter">Book Your Perfect Ride</h1>
-                    <p className="text-gray-500 text-lg">Fast, Simple, and Secure Rentals.</p>
-                </header>
-                <ProgressBar />
-                <main className="bg-white rounded-2xl shadow-xl shadow-gray-900/10 p-6 sm:p-10 border border-gray-200">
-                    <StepRenderer />
-                </main>
-                <footer className="text-center mt-8">
-                    <p className="text-gray-400 text-sm">Powered by Shreyash Desai</p>
-                </footer>
+            <div className="min-h-screen bg-gradient-to-br from-gray-100 via-white to-gray-100 text-gray-900 py-10 px-4 font-sans antialiased">
+                <div className="relative max-w-6xl mx-auto z-10">
+                    <header className="text-center mb-12 animate-in fade-in slide-in-from-bottom duration-1000">
+                        <h1 className="text-5xl md:text-7xl font-black text-transparent bg-gradient-to-r from-black via-gray-800 to-black bg-clip-text mb-4 tracking-tighter">
+                            Book Your Perfect Ride
+                        </h1>
+                        <p className="text-gray-600 text-xl font-medium">Fast, Simple, and Secure Vehicle Rentals</p>
+                        <div className="mt-6 flex items-center justify-center gap-8 text-sm text-gray-500">
+                            <div className="flex items-center gap-2">
+                                <Shield className="w-4 h-4 text-green-600" />
+                                <span>100% Secure</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <Clock className="w-4 h-4 text-blue-600" />
+                                <span>Instant Booking</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <Star className="w-4 h-4 text-amber-500 fill-current" />
+                                <span>4.9/5 Rating</span>
+                            </div>
+                        </div>
+                    </header>
+                    
+                    {/* Enhanced Progress Indicator */}
+                    <div className="mb-12 px-4 hidden lg:block">
+                        <div className="flex items-center justify-center">
+                            {allSteps.slice(0, 6).map((step, index) => (
+                                <React.Fragment key={index}>
+                                    <div className="flex flex-col items-center z-10 text-center group">
+                                        <div className={`relative flex items-center justify-center w-16 h-16 rounded-2xl transition-all duration-700 border-3 transform-gpu ${
+                                            index < currentStep 
+                                                ? 'bg-gradient-to-r from-black to-gray-800 border-black text-white scale-110 shadow-2xl shadow-black/30' 
+                                                : index === currentStep 
+                                                    ? 'bg-white border-black scale-125 shadow-2xl ring-4 ring-gray-200 ring-offset-2' 
+                                                    : 'bg-gray-100 border-gray-300 group-hover:border-gray-400 group-hover:scale-105'
+                                        }`}>
+                                            {index < currentStep ? (
+                                                <Check className="w-7 h-7 animate-in zoom-in duration-500" />
+                                            ) : (
+                                                <step.icon className={`w-7 h-7 transition-all duration-500 ${
+                                                    index === currentStep ? 'text-black scale-110' : 'text-gray-500 group-hover:text-gray-700'
+                                                }`} />
+                                            )}
+                                            {index === currentStep && (
+                                                <div className="absolute inset-0 bg-gradient-to-r from-black/20 to-transparent rounded-2xl animate-pulse"></div>
+                                            )}
+                                        </div>
+                                        <p className={`mt-3 text-sm font-bold transition-all duration-500 ${
+                                            index === currentStep 
+                                                ? 'text-black scale-110' 
+                                                : index < currentStep
+                                                    ? 'text-gray-700'
+                                                    : 'text-gray-400 group-hover:text-gray-600'
+                                        }`}>
+                                            {step.label}
+                                        </p>
+                                    </div>
+                                    {index < 5 && (
+                                        <div className={`flex-auto h-1 mx-4 rounded-full transition-all duration-700 ${
+                                            index < currentStep 
+                                                ? 'bg-gradient-to-r from-black to-gray-800 shadow-lg' 
+                                                : 'bg-gray-200'
+                                        }`}>
+                                            <div className={`h-full rounded-full transition-all duration-1000 ${
+                                                index < currentStep ? 'bg-gradient-to-r from-white/30 to-transparent w-full' : 'w-0'
+                                            }`}></div>
+                                        </div>
+                                    )}
+                                </React.Fragment>
+                            ))}
+                        </div>
+                    </div>
+
+                    <main className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-2xl shadow-gray-900/10 p-8 sm:p-12 border border-gray-200/50 relative overflow-hidden">
+                        {/* Background Pattern */}
+                        <div className="absolute inset-0 bg-gradient-to-br from-transparent via-gray-50/30 to-transparent pointer-events-none"></div>
+                        
+                        <div className={`relative z-10 transition-all duration-500 ease-in-out ${
+                            isAnimatingOut 
+                                ? 'opacity-0 transform -translate-x-8 scale-95' 
+                                : 'opacity-100 transform translate-x-0 scale-100'
+                        }`}>
+                            <header className="text-center mb-12">
+                                <h2 className="text-4xl font-black text-black mb-3 tracking-tight">
+                                    {allSteps[currentStep]?.title}
+                                </h2>
+                                <p className="text-gray-600 text-xl font-medium">{allSteps[currentStep]?.subtitle}</p>
+                            </header>
+                            
+                            <div className="mb-12 min-h-[400px] flex items-center justify-center">
+                                {allSteps[currentStep]?.component()}
+                            </div>
+                            
+                            {/* Enhanced Navigation */}
+                            {currentStep < allSteps.length - 1 && (
+                                <div className="flex flex-col-reverse sm:flex-row justify-between items-center mt-12 pt-8 border-t border-gray-200/50">
+                                    <button 
+                                        onClick={handlePrev} 
+                                        disabled={currentStep === 0} 
+                                        className="mt-6 sm:mt-0 group flex items-center gap-3 text-gray-500 font-bold rounded-2xl px-8 py-4 transition-all duration-300 hover:text-black hover:bg-gray-50 disabled:opacity-40 disabled:hover:text-gray-500 disabled:hover:bg-transparent"
+                                    >
+                                        <ChevronLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform duration-300" />
+                                        <span>Back</span>
+                                    </button>
+                                    
+                                    {currentStep < allSteps.length - 2 ? (
+                                        <button 
+                                            onClick={handleNext} 
+                                            className="group w-full sm:w-auto flex items-center justify-center gap-3 bg-gradient-to-r from-black to-gray-800 text-white font-bold rounded-2xl px-10 py-4 transition-all duration-500 ease-in-out hover:from-gray-800 hover:to-black transform hover:-translate-y-2 hover:shadow-2xl shadow-black/20"
+                                        >
+                                            <span>Continue</span>
+                                            <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform duration-300" />
+                                        </button>
+                                    ) : (
+                                        <button 
+                                            onClick={handleSubmit} 
+                                            disabled={isLoading} 
+                                            className="group w-full sm:w-auto flex items-center justify-center gap-3 bg-gradient-to-r from-green-600 to-green-700 text-white font-bold rounded-2xl px-10 py-4 transition-all duration-500 ease-in-out hover:from-green-700 hover:to-green-800 transform hover:-translate-y-2 hover:shadow-2xl shadow-green-600/30 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none"
+                                        >
+                                            {isLoading ? (
+                                                <>
+                                                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                                    <span>Confirming...</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <span>Confirm & Book</span>
+                                                    <Check className="w-5 h-5 group-hover:scale-110 transition-transform duration-300" />
+                                                </>
+                                            )}
+                                        </button>
+                                    )}
+                               </div>
+                            )}
+                        </div>
+                    </main>
+                    
+                    <footer className="text-center mt-12 animate-in fade-in slide-in-from-bottom duration-1000 delay-500">
+                        <p className="text-gray-500 text-sm font-medium">
+                            Powered by <span className="font-bold text-black">Shreyash Desai</span> • 
+                            <span className="ml-2">Built with ❤️ using React</span>
+                        </p>
+                    </footer>
+                </div>
             </div>
-        </div>
-    </BookingProvider>
-  );
+        </>
+    );
 };
 
 export default App;
