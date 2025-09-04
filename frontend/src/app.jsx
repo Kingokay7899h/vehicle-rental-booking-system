@@ -101,6 +101,33 @@ const formReducer = (state, action) => {
   }
 };
 
+// --- HARDCODED DATA TO REPLACE BACKEND CALLS ---
+const VEHICLE_TYPES_DATA = [
+  { id: 1, name: 'Hatchback', wheels: 4 },
+  { id: 2, name: 'SUV', wheels: 4 },
+  { id: 3, name: 'Sedan', wheels: 4 },
+  { id: 4, name: 'Cruiser', wheels: 2 }
+];
+
+const VEHICLES_DATA = [
+  // Hatchback vehicles (type_id: 1)
+  { id: 1, name: 'Swift', type_id: 1, price_per_day: 1500.00, is_available: true },
+  { id: 2, name: 'Alto', type_id: 1, price_per_day: 1200.00, is_available: true },
+  { id: 3, name: 'Tiago', type_id: 1, price_per_day: 1400.00, is_available: true },
+  // SUV vehicles (type_id: 2)
+  { id: 4, name: 'Scorpio', type_id: 2, price_per_day: 2500.00, is_available: true },
+  { id: 5, name: 'XUV500', type_id: 2, price_per_day: 2800.00, is_available: true },
+  { id: 6, name: 'Creta', type_id: 2, price_per_day: 2200.00, is_available: true },
+  // Sedan vehicles (type_id: 3)
+  { id: 7, name: 'City', type_id: 3, price_per_day: 2000.00, is_available: true },
+  { id: 8, name: 'Verna', type_id: 3, price_per_day: 1900.00, is_available: true },
+  { id: 9, name: 'Ciaz', type_id: 3, price_per_day: 1800.00, is_available: true },
+  // Cruiser vehicles (type_id: 4)
+  { id: 10, name: 'Royal Enfield Classic 350', type_id: 4, price_per_day: 800.00, is_available: true },
+  { id: 11, name: 'Avenger 220 Cruise', type_id: 4, price_per_day: 700.00, is_available: true },
+  { id: 12, name: 'Jawa Perak', type_id: 4, price_per_day: 900.00, is_available: true }
+];
+
 // --- CONFIGURATION & API ---
 const API_BASE_URL = 'http://localhost:5000/api';
 
@@ -337,49 +364,42 @@ const BookingFlow = () => {
     } = useBookingContext();
 
     // --- DATA FETCHING WITH CUSTOM HOOKS ---
-    const { data: vehicleTypesData, loading: typesLoading } = useApiCall(`${API_BASE_URL}/vehicle-types`, []);
+    const vehicleTypesData = VEHICLE_TYPES_DATA;
+const typesLoading = false;
     
     useEffect(() => {
-        if (vehicleTypesData) {
-            // Filter and clean data
-            const filteredData = vehicleTypesData.filter(type => type.name.toLowerCase() !== 'sports');
-            const uniqueTypes = Array.from(new Map(filteredData.map(item => [item.id, item])).values());
-            setVehicleTypes(uniqueTypes);
-        }
-    }, [vehicleTypesData, setVehicleTypes]);
-
+    // Use hardcoded data directly
+    const filteredData = VEHICLE_TYPES_DATA.filter(type => type.name.toLowerCase() !== 'sports');
+    const uniqueTypes = Array.from(new Map(filteredData.map(item => [item.id, item])).values());
+    setVehicleTypes(uniqueTypes);
+}, [setVehicleTypes]);
     useEffect(() => {
-        if (formState.vehicleType) {
-            const fetchVehicles = async () => {
-                setIsLoading(true);
-                try {
-                    const response = await fetch(`${API_BASE_URL}/vehicles/${formState.vehicleType}`);
-                    let data = await response.json();
+    if (formState.vehicleType) {
+        setIsLoading(true);
+        
+        // Simulate loading delay for better UX
+        setTimeout(() => {
+            // Filter vehicles by selected type
+            const filteredVehicles = VEHICLES_DATA.filter(vehicle => vehicle.type_id == formState.vehicleType);
+            
+            const duplicatesToRemove = ['Maruti Swift', 'Mahindra Scorpio', 'Honda City'];
+            let cleanedData = filteredVehicles.filter(vehicle => !duplicatesToRemove.includes(vehicle.name));
+            const uniqueVehicles = Array.from(new Map(cleanedData.map(item => [item.name, item])).values());
 
-                    const duplicatesToRemove = ['Maruti Swift', 'Mahindra Scorpio', 'Honda City'];
-                    let cleanedData = data.filter(vehicle => !duplicatesToRemove.includes(vehicle.name));
-                    const uniqueVehicles = Array.from(new Map(cleanedData.map(item => [item.name, item])).values());
-
-                    setVehicles(uniqueVehicles);
-                    setAllVehicles(prev => {
-                        const newVehicles = [...prev];
-                        uniqueVehicles.forEach(v => {
-                            if (!newVehicles.find(nv => nv.id === v.id)) {
-                                newVehicles.push(v);
-                            }
-                        });
-                        return newVehicles;
-                    });
-                } catch (error) {
-                    console.error('Error fetching vehicles:', error);
-                } finally {
-                    setIsLoading(false);
-                }
-            };
-            fetchVehicles();
-        }
-    }, [formState.vehicleType, setIsLoading, setVehicles, setAllVehicles]);
-
+            setVehicles(uniqueVehicles);
+            setAllVehicles(prev => {
+                const newVehicles = [...prev];
+                uniqueVehicles.forEach(v => {
+                    if (!newVehicles.find(nv => nv.id === v.id)) {
+                        newVehicles.push(v);
+                    }
+                });
+                return newVehicles;
+            });
+            setIsLoading(false);
+        }, 800); // 800ms delay to simulate API call
+    }
+}, [formState.vehicleType, setIsLoading, setVehicles, setAllVehicles]);
     // --- VALIDATION LOGIC WITH USECALLBACK ---
     const validateStep = useCallback((step) => {
         const newErrors = {};
@@ -463,21 +483,21 @@ const BookingFlow = () => {
                     startDate: formState.startDate,
                     endDate: formState.endDate
                 };
-                const response = await fetch(`${API_BASE_URL}/bookings`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload),
-                });
-                const result = await response.json();
-                
-                if (response.ok) {
-                    // Save to booking history
-                    const newBooking = { ...payload, id: Date.now(), createdAt: new Date().toISOString() };
-                    setSavedBookings(prev => [newBooking, ...prev.slice(0, 4)]);
-                    handleNext();
-                } else {
-                    setBookingError(result.message);
-                }
+                // Simulate API delay
+await new Promise(resolve => setTimeout(resolve, 2000));
+
+// For demo purposes, randomly simulate success/failure
+const shouldSucceed = Math.random() > 0.1; // 90% success rate
+
+if (shouldSucceed) {
+    // Save to booking history
+    const newBooking = { ...payload, id: Date.now(), createdAt: new Date().toISOString() };
+    setSavedBookings(prev => [newBooking, ...prev.slice(0, 4)]);
+    handleNext();
+} else {
+    // Simulate a booking conflict for demo
+    setBookingError('This vehicle is already booked for the selected dates. Please choose different dates or another vehicle.');
+}    
             } catch (error) {
                 setBookingError('An unexpected error occurred. Please try again.');
             } finally {
